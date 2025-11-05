@@ -163,7 +163,7 @@
 					<input
 						v-model="currentEditBookmark.title"
 						class="w-full px-3 py-2 border border-gray-300 rounded-md"
-						placeholder="{{ t('bookmarkManager.title') }}"
+						:placeholder=t('bookmarkManager.title')
 					/>
 				</div>
 				<div v-if="!isCreateMode || bookmarkType === 'bookmark'" class="mb-4">
@@ -171,7 +171,7 @@
 					<input
 						v-model="currentEditBookmark.url"
 						class="w-full px-3 py-2 border border-gray-300 rounded-md"
-						placeholder="{{ t('bookmarkManager.enterUrl') }}"
+						:placeholder=t('bookmarkManager.enterUrl')
 					/>
 				</div>
 				<div class="mb-4">
