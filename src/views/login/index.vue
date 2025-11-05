@@ -9,14 +9,14 @@ import { t } from '@/locales'
 import { languageOptions } from '@/utils/defaultData'
 import type { Language } from '@/store/modules/app/helper'
 import { ss } from '@/utils/storage'
-
+import {getList as getGroupList} from "@/api/panel/itemIconGroup";
 // const userStore = useUserStore()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const ms = useMessage()
 const loading = ref(false)
 const languageValue = ref<Language>(appStore.language)
-
+const GROUP_LIST_CACHE_KEY = 'groupListCache'
 // const isShowCaptcha = ref<boolean>(false)
 // const isShowRegister = ref<boolean>(false)
 
@@ -24,10 +24,6 @@ const form = ref<Login.LoginReqest>({
   username: '',
   password: '',
 })
-
-// 导入需要的API函数
-import { getList as getGroupList } from '@/api/panel/itemIconGroup'
-import { getList as getBookmarksList } from '@/api/panel/bookmark'
 
 const loginPost = async () => {
   loading.value = true
@@ -39,7 +35,7 @@ const loginPost = async () => {
       ss.remove('USER_CONFIG_CACHE')
       ss.remove('GROUP_LIST_CACHE_KEY')
       ss.remove('bookmarksTreeCache')
-      
+
       // 清除所有localStorage中的相关缓存键
       // 对于以特定前缀开头的键，我们需要使用localStorage API直接访问
       for (let i = 0; i < localStorage.length; i++) {
@@ -48,42 +44,18 @@ const loginPost = async () => {
           ss.remove(key)
         }
       }
-      
+
       authStore.setToken(res.data.token)
       authStore.setUserInfo(res.data)
-      
-      // 登录成功后重新请求所有必要的接口
-      // 1. 重新请求分组列表
-      const groupListRes = await getGroupList()
-      if (groupListRes.code === 0) {
-        ss.set('groupListCache', groupListRes.data.list)
-        
-        // 2. 为每个分组重新请求图标数据
-        for (const group of groupListRes.data.list) {
-          if (group.id) {
-            try {
-              const importDynamic = new Function('modulePath', 'return import(modulePath)');
-              const { getListByGroupId } = await importDynamic('@/api/panel/itemIcon');
-              const iconListRes = await getListByGroupId(group.id);
-              if (iconListRes.code === 0) {
-                ss.set(`itemIconList_${group.id}`, iconListRes.data.list);
-              }
-            } catch (importError) {
-              console.error('导入getListByGroupId失败:', importError);
-            }
-          }
-        }
-      }
-      
-      // 3. 重新请求书签数据
-      const bookmarksRes = await getBookmarksList()
-      if (bookmarksRes.code === 0) {
-        // 简单处理书签数据，保存到缓存
-        ss.set('bookmarksTreeCache', bookmarksRes.data || []);
-      }
-      
-      // 更新本地用户信息
-      updateLocalUserInfo(res.data)
+
+			// 获取分组列表数据
+			const groupListRes = await getGroupList() as any
+			if (groupListRes.code === 0 && groupListRes.data) {
+				// 保存分组列表到缓存
+				ss.set(GROUP_LIST_CACHE_KEY, groupListRes.data.list || [])
+			}
+
+
 
       setTimeout(() => {
         ms.success(`Hi ${res.data.name},${t('login.welcomeMessage')}`)

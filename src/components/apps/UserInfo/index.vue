@@ -14,7 +14,7 @@ import { ss } from '@/utils/storage'
 
 // 用户认证信息缓存键
 const USER_AUTH_INFO_CACHE_KEY = 'USER_AUTH_INFO_CACHE'
-
+const ITEM_ICON_LIST_CACHE_KEY_PREFIX = 'itemIconList_'
 const userStore = useUserStore()
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -73,7 +73,8 @@ async function logoutApi() {
   panelState.removeState()
   appStore.removeToken()
   // 清除用户认证信息缓存
-  ss.remove(USER_AUTH_INFO_CACHE_KEY)
+	window.localStorage.clear();
+	window.sessionStorage.clear();
   ms.success(t('settingUserInfo.logoutSuccess'))
   // router.push({ path: '/login' })
   location.reload()// 强制刷新一下页面
