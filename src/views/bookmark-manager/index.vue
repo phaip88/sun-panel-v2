@@ -545,16 +545,23 @@ const allFolders = computed(() => {
     const folders: { label: string; value: string }[] = [{ label: t('bookmarkManager.rootDirectory'), value: '0' }];
     const collectFolders = (nodes: any[]) => {
         for (const node of nodes) {
-            if (!node.isLeaf) {
-                folders.push({ label: node.label, value: String(node.key) });
-                if (node.children) {
+            // 收集所有标记为文件夹的节点
+            if (node.isFolder || !node.isLeaf) {
+                folders.push({ label: node.label || '未命名', value: String(node.key || '0') });
+                if (node.children && node.children.length > 0) {
                     collectFolders(node.children);
                 }
             }
         }
     };
-    collectFolders(bookmarkTree.value);
-    return folders;
+    // 优先从fullData收集，确保获取所有文件夹
+    const dataSource = fullData.value.length > 0 ? fullData.value : bookmarkTree.value;
+    collectFolders(dataSource);
+    
+    // 去重，确保没有重复的文件夹
+    const uniqueFolders = Array.from(new Map(folders.map(folder => [folder.value, folder])).values());
+    
+    return uniqueFolders;
 });
 
 
@@ -1368,48 +1375,50 @@ function filterFoldersOnly(nodes: TreeOption[]): TreeOption[] {
 
 // 将服务器返回的树形结构转换为前端组件需要的格式
 function convertServerTreeToFrontendTree(serverTree: any[]): TreeOption[] {
-	// 为每个节点创建一个映射来存储父ID信息
-	const folderIdMap = new Map<string, string | null>();
+	const result: TreeOption[] = [];
 
-	const result = serverTree.map(node => {
-		let bookmarkObj = undefined;
-		if (node.isFolder !== 1 && node.url) {
-			const folderId = node.ParentUrl !== undefined ? String(node.ParentUrl) : null;
-			// 存储在单独的映射中而不是节点对象上
-			folderIdMap.set(String(node.id), folderId);
-			bookmarkObj = { id: node.id, title: node.title, url: node.url };
-		}
-
-		// 计算是否有子节点
+	function processNode(node: any): TreeOption {
+		const nodeKey = String(node.id);
+		const isFolder = node.isFolder === 1;
 		const hasChildren = Array.isArray(node.children) && node.children.length > 0;
 
+		// 构建基本节点结构
 		const frontendNode: TreeOption = {
-			key: String(node.id),
+			key: nodeKey,
 			label: node.title || '未命名',
-			// 关键修改：对于文件夹节点，如果没有子节点则设置isLeaf为true
-			isLeaf: node.isFolder !== 1 || !hasChildren,
-			isFolder: node.isFolder === 1,
-			bookmark: bookmarkObj,
-			children: hasChildren ? convertServerTreeToFrontendTree(node.children) : [],
-			rawNode: node,
+			isLeaf: !isFolder || !hasChildren,
+			isFolder: isFolder,
+			bookmark: isFolder ? undefined : { id: node.id, title: node.title, url: node.url || '' },
+			children: [],
+			rawNode: {
+				...node,
+				parentUrl: node.parentUrl || '0' // 确保parentUrl存在
+			},
 			disabledExpand: !hasChildren
 		};
 
-		return frontendNode;
-	});
+		// 递归处理子节点
+		if (hasChildren) {
+			frontendNode.children = node.children.map((child: any) => processNode(child));
+		}
 
-	// 在处理完所有节点后，处理父子关系
-	// 注意：这里我们只需要返回转换后的节点，父子关系会在外部处理
+		return frontendNode;
+	}
+
+	// 处理根节点
+	for (const node of serverTree) {
+		result.push(processNode(node));
+	}
+
 	return result;
 }
 
 function buildBookmarkTree(bookmarks: any[]): TreeOption[] {
-	const folderMap = new Map<string, TreeOption>();
-	const allNodes: TreeOption[] = [];
-	// 使用单独的映射来存储folderId信息
-	const folderIdMap = new Map<string, string>();
-
-	// 第一步：创建所有节点
+	// 创建节点映射，用于快速查找
+	const nodeMap = new Map<string, TreeOption>();
+	const rootNodes: TreeOption[] = [];
+	
+	// 第一步：创建所有节点并添加到映射
 	for (const bookmark of bookmarks) {
 		const isFolder = bookmark.isFolder === 1;
 		const nodeKey = String(bookmark.id || bookmark.Key || '0');
@@ -1418,71 +1427,47 @@ function buildBookmarkTree(bookmarks: any[]): TreeOption[] {
 			label: bookmark.title || '未命名',
 			isLeaf: !isFolder,
 			isFolder: isFolder,
-			rawNode: bookmark,
+			bookmark: isFolder ? undefined : { id: bookmark.id, title: bookmark.title, url: bookmark.url || '' },
+			rawNode: {
+				...bookmark,
+				parentUrl: bookmark.parentUrl || bookmark.folderId || '0' // 合并parentUrl和folderId
+			},
 			children: [],
-			disabledExpand: true // 初始设为true，后续根据实际情况调整
+			disabledExpand: true
 		};
-
-		if (isFolder) {
-			node.bookmark = undefined;
-			folderMap.set(node.key, node);
-		} else {
-			// 创建不包含folderId的bookmark对象
-			const { folderId, ...bookmarkWithoutFolderId } = bookmark;
-			node.bookmark = bookmarkWithoutFolderId;
-			// 将folderId存储在单独的映射中
-			if (folderId) {
-				folderIdMap.set(nodeKey, String(folderId));
-			}
-		}
-
-		allNodes.push(node);
+		nodeMap.set(nodeKey, node);
 	}
 
 	// 第二步：构建树形结构
-	const rootNodes: TreeOption[] = [];
+	for (const bookmark of bookmarks) {
+		const nodeKey = String(bookmark.id || bookmark.Key || '0');
+		const node = nodeMap.get(nodeKey);
+		if (!node) continue;
 
-	// 构建父子关系
-	for (const node of allNodes) {
-		if (node.isFolder) continue;
-
-		// 获取父文件夹ID - 从单独的映射中获取
-		const parentId = folderIdMap.get(node.key) || '0';
-		const parentFolder = folderMap.get(String(parentId));
-
-		if (parentFolder) {
-			// 添加到父文件夹的子节点列表
-			parentFolder.children.push(node);
-			// 更新父文件夹的disabledExpand属性
-			parentFolder.disabledExpand = false;
+		// 获取父节点ID
+		const parentId = String(bookmark.parentUrl || bookmark.folderId || '0');
+		
+		if (parentId === '0' || parentId === '') {
+			// 根节点
+			rootNodes.push(node);
 		} else {
-			// 如果没有父文件夹，添加到根节点
-			rootNodes.push(node);
+			// 查找父节点并建立关系
+			const parentNode = nodeMap.get(parentId);
+			if (parentNode && parentNode.key !== node.key) {
+				parentNode.children.push(node);
+				parentNode.disabledExpand = false;
+				parentNode.isLeaf = false;
+			} else {
+				// 如果父节点不存在，作为根节点
+				rootNodes.push(node);
+			}
 		}
 	}
 
-	// 添加所有根文件夹到根节点列表
-	for (const node of folderMap.values()) {
-		// 检查是否是根文件夹（没有被添加为其他节点的子节点）
-		const isRootFolder = !Array.from(folderMap.values()).some(parent =>
-			parent.children.some(child => child.key === node.key)
-		);
-
-		if (isRootFolder) {
-			// 更新根文件夹的disabledExpand属性
-			node.disabledExpand = node.children.length === 0;
-			rootNodes.push(node);
-		}
-	}
-
-	// 第三步：更新文件夹节点的isLeaf和disabledExpand属性
-	for (const node of allNodes) {
+	// 第三步：确保文件夹正确设置isLeaf属性
+	for (const node of nodeMap.values()) {
 		if (node.isFolder) {
-			// 关键修改：空文件夹设置isLeaf为true，但保持isFolder为true
-			// 这样Tree组件不会显示折叠图标，但renderTreeLabel仍会将其识别为文件夹
-			const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-			node.isLeaf = !hasChildren;
-			node.disabledExpand = !hasChildren;
+			node.isLeaf = node.children.length === 0;
 		}
 	}
 
