@@ -765,7 +765,7 @@ function enterFolderHandler(folderItem: any) {
 	// 确保selectedFolder被正确设置
 	selectedFolder.value = String(folderItem.id)
 	// 同步更新左侧树的选中状态
-	const treeInstance = treeRef.value?.getInstance()
+	const treeInstance = treeRef.value
 	if (treeInstance) {
 		treeInstance.setSelectedKeys([String(folderItem.id)])
 	}
