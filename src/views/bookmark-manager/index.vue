@@ -209,8 +209,9 @@ import { t } from '@/locales'
 import { dialog } from '@/utils/request/apiMessage'
 import { ss } from '@/utils/storage/local'
 
-// 首页书签缓存键名
-const BOOKMARKS_CACHE_KEY = 'bookmarksTreeCache'
+// 缓存键名定义
+const BOOKMARKS_CACHE_KEY = 'bookmarksTreeCache' // 只包含文件夹的树结构缓存
+const BOOKMARKS_FULL_CACHE_KEY = 'bookmarksFullCache' // 完整书签数据缓存
 
 const router = useRouter()
 const ms = useMessage()
