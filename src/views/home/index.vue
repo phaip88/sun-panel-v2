@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus'
 import { NBackTop, NButton, NButtonGroup, NDropdown, NModal, NSkeleton, NSpin, useDialog, useMessage } from 'naive-ui'
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref, h } from 'vue'
 import { AppIcon, AppStarter, EditItem } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
+import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 
 import { setTitle, updateLocalUserInfo } from '@/utils/cmn'
 import { useAuthStore, usePanelState } from '@/store'
@@ -702,6 +703,37 @@ function handleAddItem(itemIconGroupId?: number) {
   if (itemIconGroupId)
     currentAddItenIconGroupId.value = itemIconGroupId
 }
+
+// 修改renderTreeLabel函数以正确使用SVG组件
+const renderTreeLabel = ({ option }: { option: any }) => {
+// 安全获取节点数据
+const nodeData = option || {};
+
+// 判断是否为文件夹节点
+const isFolder = nodeData.isFolder === 1 || !nodeData.isLeaf;
+const displayText = nodeData.label || nodeData.title || '未命名';
+
+try {
+return h('div', { class: 'flex items-center' }, [
+isFolder ? h('img', {
+src: '/src/assets/svg-icons/icon_folder_open.svg',
+class: 'w-5 h-5 mr-2',
+onError: (e: Event) => {
+console.error('文件夹图标加载失败');
+const target = e.target as HTMLImageElement;
+target.onerror = null;
+target.style.display = 'none';
+}
+}) : h('span', { class: 'w-5 mr-2' }, ''), // 非文件夹节点保持对齐
+// 节点文本
+h('span', {}, displayText)
+]);
+} catch (error) {
+console.error('渲染树节点标签时出错:', error);
+// 错误处理
+return h('span', {}, displayText);
+}
+};
 </script>
 
 <template>
@@ -748,6 +780,7 @@ function handleAddItem(itemIconGroupId?: number) {
 					expand-on-click
 					:default-expanded-keys="treeData.length > 0 ? [treeData[0].key] : []"
 					@update:selected-keys="handleTreeSelect"
+					:render-label="renderTreeLabel"
 				/>
 			</NDrawerContent>
 		</NDrawer>
@@ -1098,3 +1131,4 @@ html {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 </style>
+
