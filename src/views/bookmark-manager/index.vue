@@ -143,7 +143,7 @@
 		class="flex items-center justify-between border p-2 rounded hover:bg-gray-50 cursor-pointer"
 		@contextmenu.prevent="openContextMenu($event, item)"
 		@click="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
-		@dblclick="item.isFolder && enterFolderHandler(item)"
+		@dblclick="item.isFolder"
 		:draggable="true"
 		@dragstart="handleDragStart($event, item)"
 		@dragend="handleDragEnd($event)"
@@ -760,16 +760,7 @@ function handleDragEnd(event: DragEvent) {
 	draggedItem.value = null;
 }
 
-// 进入文件夹处理函数
-function enterFolderHandler(folderItem: any) {
-	// 确保selectedFolder被正确设置
-	selectedFolder.value = String(folderItem.id)
-	// 同步更新左侧树的选中状态
-	const treeInstance = treeRef.value
-	if (treeInstance) {
-		treeInstance.setSelectedKeys([String(folderItem.id)])
-	}
-}
+
 
 // 拖拽悬停
 function handleDragOver(event: DragEvent) {
