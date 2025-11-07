@@ -228,7 +228,7 @@ import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 // 不再直接导入SVG文件，使用内联方式
 import { NTree, NInput, NButton, useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { addMultiple as addMultipleBookmarks, add as addBookmark, getList as getBookmarksList, deletes, update as updateBookmark } from '@/api/panel/bookmark'
+import { getList as getBookmarksList, add as addBookmark, update, deletes, addMultiple as addMultipleBookmarks } from '@/api/panel/bookmark'
 import { t } from '@/locales'
 import { dialog } from '@/utils/request/apiMessage'
 import { ss } from '@/utils/storage/local'
@@ -795,8 +795,9 @@ watch(fullData, () => {
 }, { immediate: true, deep: true });
 
 
-// 处理拖拽放置
+// 处理拖拽放置 - 实现正确的排序交换逻辑
 async function handleDrop(event: DragEvent, targetItem: any) {
+	console.log('=== handleDrop 开始 ===');
 	event.preventDefault();
 
 	// 移除拖拽时的视觉效果
@@ -804,120 +805,95 @@ async function handleDrop(event: DragEvent, targetItem: any) {
 		event.currentTarget.classList.remove('opacity-50');
 	}
 
-	// 确保拖拽项和目标项存在，并且不是同一个项目
+	// 确保拖拽项存在且不是同一个项目
 	if (!draggedItem.value || draggedItem.value.id === targetItem.id) {
+		console.log('拖拽项不存在或与目标项相同');
 		draggedItem.value = null;
 		return;
 	}
 
-	// 确保它们在同一个文件夹中 - 处理可能为undefined或null的情况
-	// 兼容不同数据结构：rawNode.parentUrl 或 parentId
-	const draggedParent = draggedItem.value.rawNode?.parentUrl || draggedItem.value.parentId || draggedItem.value.folderId || '0';
-	const targetParent = targetItem.rawNode?.parentUrl || targetItem.parentId || targetItem.folderId || '0';
+	const draggedItemData = draggedItem.value;
+	console.log('拖拽项:', draggedItemData.id, '目标项:', targetItem.id);
 
-	if (draggedParent !== targetParent) {
+	// 确保它们在同一个文件夹中
+	const draggedFolderId = String(draggedItemData.folderId || '0');
+	const targetFolderId = String(targetItem.folderId || '0');
+	console.log('检查文件夹:', { draggedFolderId, targetFolderId });
+
+	if (draggedFolderId !== targetFolderId) {
+		console.log('不在同一文件夹中');
 		ms.warning('只能在同一文件夹内拖拽排序');
 		draggedItem.value = null;
 		return;
 	}
 
 	// 获取当前文件夹中的所有项目
-	const currentFolderId = targetParent;
-
-	// 从sortedItems中找到拖拽项和目标项的索引
-	const draggedIndex = sortedItems.value.findIndex(item => item.id === draggedItem.value.id);
-	const targetIndex = sortedItems.value.findIndex(item => item.id === targetItem.id);
-
-	// 创建临时排序数组用于前端即时展示
-	const newOrder = [...sortedItems.value];
-
-	// 从数组中移除拖拽项
-	newOrder.splice(draggedIndex, 1);
-	// 在目标位置插入拖拽项
-	newOrder.splice(targetIndex, 0, draggedItem.value);
-
-	// 立即更新前端显示，提供即时反馈
-	sortedItems.value = newOrder;
-
-	// 更新每个项目的sort值
-	const updatePromises = newOrder.map(async (item, index) => {
-		// 找到当前文件夹的标题
-		let folderTitle = '0';
-		if (currentFolderId !== '0') {
-			// 首先尝试直接使用allItems查找
-			let folder = allItems.value.find(f =>
-				String(f.id) === currentFolderId &&
-				(f.isFolder === true)
-			);
-
-			// 如果没找到，遍历fullData树形结构查找
-			if (!folder && fullData.value) {
-				const findFolderRecursive = (items: any[]) => {
-					for (const item of items) {
-						if (String(item.id) === currentFolderId &&
-						    (item.isFolder === true)) {
-							folder = item;
-							return true;
-						}
-						if (item.children && item.children.length > 0) {
-							if (findFolderRecursive(item.children)) {
-								return true;
-							}
-						}
-					}
-					return false;
+	// 注意：这里需要从服务器获取的数据中查找，而不是仅从前端状态
+	const currentFolderItems = allItems.value.filter(item => 
+		String(item.folderId || '0') === draggedFolderId
+	);
+	
+	// 找到拖拽项和目标项在当前文件夹中的索引
+	const draggedIndex = currentFolderItems.findIndex(item => String(item.id) === String(draggedItemData.id));
+	const targetIndex = currentFolderItems.findIndex(item => String(item.id) === String(targetItem.id));
+	
+	console.log('项目索引:', { draggedIndex, targetIndex, folderItemsCount: currentFolderItems.length });
+	
+	if (draggedIndex !== -1 && targetIndex !== -1) {
+		// 实现交换排序的逻辑
+		// 方案：交换两个项目的排序值
+		const draggedUpdateData = {
+					id: Number(draggedItemData.id),
+					title: draggedItemData.title,
+					url: draggedItemData.isFolder ? draggedItemData.title : (draggedItemData.url || ''),
+					parentUrl: draggedFolderId,
+					sort: targetIndex + 1, // 使用目标项的位置+1作为排序值
+					lanUrl: draggedItemData.lanUrl || '',
+					openMethod: draggedItemData.openMethod || 0,
+					icon: draggedItemData.icon || null
 				};
-				findFolderRecursive(fullData.value);
-			}
-
-			folderTitle = folder ? folder.title : '0';
-		}
-
-		// 构建更新数据 - 只包含后端Update接口期望的字段
-		const updateData = {
-				id: item.id,
-				title: item.title,
-				url: item.isFolder ? item.title : item.url,
-				parentUrl: folderTitle, // 存储文件夹标题而不是ID
-				sort: index + 1, // 从1开始的排序值
-				lanUrl: item.lanUrl || '',
-				icon: item.icon || '', // 添加缺失的icon属性
-				openMethod: item.openMethod || 'newTab' // 添加缺失的openMethod属性
-			};
-
+				
+				const targetUpdateData = {
+					id: Number(targetItem.id),
+					title: targetItem.title,
+					url: targetItem.isFolder ? targetItem.title : (targetItem.url || ''),
+					parentUrl: targetFolderId,
+					sort: draggedIndex + 1, // 使用拖拽项的位置+1作为排序值
+					lanUrl: targetItem.lanUrl || '',
+					openMethod: targetItem.openMethod || 0,
+					icon: targetItem.icon || null
+				};
+		
+		console.log('交换排序数据 - 拖拽项:', draggedUpdateData);
+		console.log('交换排序数据 - 目标项:', targetUpdateData);
+		
 		try {
-			await updateBookmark(updateData);
+			// 先更新拖拽项
+			const draggedResponse = await update(draggedUpdateData);
+			console.log('拖拽项更新响应:', draggedResponse);
+			
+			// 再更新目标项
+			const targetResponse = await update(targetUpdateData);
+			console.log('目标项更新响应:', targetResponse);
+			
+			// 清除缓存并刷新
+			ss.remove(BOOKMARKS_FULL_CACHE_KEY);
+			ss.remove(BOOKMARKS_CACHE_KEY);
+			await refreshBookmarks(true);
+			ms.success('排序交换成功');
 		} catch (error) {
-			throw error;
+			console.error('更新失败:', error);
+			await refreshBookmarks(true);
+			ms.error('保存排序失败');
 		}
-	});
-
-	try {
-		// 并行更新所有项目的排序
-
-		await Promise.all(updatePromises);
-
-
-		// 强制清除缓存，确保获取最新数据
-		ss.remove(BOOKMARKS_FULL_CACHE_KEY);
-		ss.remove(BOOKMARKS_CACHE_KEY);
-
-
-		// 强制刷新，确保从服务器获取最新排序数据
-		await refreshBookmarks(true);
-
-		// 注意：排序初始化已在refreshBookmarks内部通过setTimeout异步完成
-		ms.success('排序保存成功');
-	} catch (error) {
-		// 失败时恢复原始排序
-		console.error('保存排序失败:', error);
-		// 重新加载数据以恢复
-		await refreshBookmarks(true);
-		ms.error('保存排序失败');
+	} else {
+		console.log('在当前文件夹中找不到拖拽项或目标项');
+		ms.warning('排序更新失败：找不到相关项目');
 	}
-
+	
 	// 重置拖拽状态
 	draggedItem.value = null;
+	console.log('=== handleDrop 结束 ===');
 }
 
 // 处理编辑书签
@@ -1059,7 +1035,7 @@ async function saveBookmarkChanges() {
 				updateData.url = currentEditBookmark.value.url;
 			}
 
-			const updateResponse = await updateBookmark(updateData);
+			const updateResponse = await update(updateData);
 
 				// 检查响应状态
 				if (updateResponse && updateResponse.code === 0) {

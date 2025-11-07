@@ -7,6 +7,7 @@ import { AppIcon, AppStarter, EditItem } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
+import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 
 import { setTitle, updateLocalUserInfo } from '@/utils/cmn'
 import { useAuthStore, usePanelState } from '@/store'
@@ -741,7 +742,7 @@ const displayText = nodeData.label || nodeData.title || '未命名';
 try {
 return h('div', { class: 'flex items-center' }, [
 isFolder ? h('img', {
-src: '/src/assets/svg-icons/icon_folder_open.svg',
+src: FolderOpenIcon,
 class: 'w-5 h-5 mr-2',
 onError: (e: Event) => {
 console.error('文件夹图标加载失败');
