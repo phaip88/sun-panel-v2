@@ -2,13 +2,17 @@ package panel
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"sun-panel/api/api_v1/common/apiReturn"
 	"sun-panel/api/api_v1/common/base"
 	"sun-panel/global"
+	"sun-panel/lib/siteFavicon"
 	"sun-panel/models"
 	"time"
 
@@ -283,6 +287,49 @@ func filterUniqueBookmarks(bookmarks []models.Bookmark, userId uint) []models.Bo
 	return uniqueBookmarks
 }
 
+// getFaviconBase64 从URL获取favicon并转换为base64
+func getFaviconBase64(urlStr string) (string, error) {
+	// Check if it's an HTTP URL and add protocol if missing
+	if !siteFavicon.IsHTTPURL(urlStr) {
+		// Try adding https:// to URLs without protocol
+		urlStr = "https://" + urlStr
+	}
+
+	// Get the favicon URL from the website
+	faviconURL, err := siteFavicon.GetOneFaviconURL(urlStr)
+	if err != nil {
+		// If GetOneFaviconURL fails, try Google favicon service as fallback
+		faviconURL = fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s", urlStr)
+	}
+
+	// Download the favicon image
+	resp, err := http.Get(faviconURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Check HTTP response status
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP request failed with status code %d", resp.StatusCode)
+	}
+
+	// Read the image data
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	// Get Content-Type from response header
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/png" // Default to PNG if not specified
+	}
+
+	// Encode to base64 and add data URL prefix
+	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
 // Add 添加单个书签
 func (a *Bookmark) Add(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
@@ -304,6 +351,13 @@ func (a *Bookmark) Add(c *gin.Context) {
 
 	// 设置新的sort值
 	req.Sort = maxSort + 1
+
+	// 为书签（非文件夹）自动获取favicon
+	if req.IsFolder == 0 {
+		if faviconBase64, err := getFaviconBase64(req.Url); err == nil && faviconBase64 != "" {
+			req.IconJson = faviconBase64
+		}
+	}
 
 	// 插入数据库
 	if err := global.Db.Create(&req).Error; err != nil {
@@ -454,6 +508,16 @@ func (a *Bookmark) Update(c *gin.Context) {
 		"LanUrl":    req.LanUrl,
 		"ParentUrl": req.ParentUrl,
 		"UpdatedAt": time.Now(),
+	}
+
+	// 如果URL改变且是书签（非文件夹），重新获取favicon
+	if req.Url != bookmark.Url && bookmark.IsFolder == 0 {
+		if faviconBase64, err := getFaviconBase64(req.Url); err == nil && faviconBase64 != "" {
+			updateData["IconJson"] = faviconBase64
+		} else {
+			// 如果获取失败，清空现有favicon
+			updateData["IconJson"] = ""
+		}
 	}
 
 	// 如果parentUrl改变了，需要重新计算sort值

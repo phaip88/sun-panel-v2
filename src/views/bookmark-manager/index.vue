@@ -43,16 +43,29 @@
 					class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 text-gray-700 dark:text-white rounded-md shadow-lg py-1 z-[100000]"
 				>
 					<button
-						class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
-						@click.stop="createNewBookmark(); isDropdownOpen = false"
-					>
-						{{ t('bookmarkManager.create') }}
-					</button>
+					class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+					@click.stop="bookmarkType = 'bookmark'; createNewBookmark(); isDropdownOpen = false"
+				>
+					{{ t('bookmarkManager.addBookmark') }}
+				</button>
+				<button
+					class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+					@click.stop="bookmarkType = 'folder'; createNewBookmark(); isDropdownOpen = false"
+				>
+					{{ t('bookmarkManager.addFolder') }}
+				</button>
+				<div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 					<button
 						class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
 						@click.stop="triggerImportBookmarks(); isDropdownOpen = false"
 					>
 						{{ t('bookmarkManager.importBookmarks') }}
+					</button>
+					<button
+						class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+						@click.stop="exportBookmarks(); isDropdownOpen = false"
+					>
+						{{ t('bookmarkManager.exportBookmarks') }}
 					</button>
 				</div>
 			</div>
@@ -155,7 +168,8 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
 				</svg>
 			</span>
-			<span v-else class="w-[20px]">					<img v-if="item.iconJson" :src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson" alt="" class="w-4 h-4 inline-block rounded-full">					<img v-else :src="`https://www.google.com/s2/favicons?domain=${item.url}`" alt="" class="w-4 h-4 inline-block rounded-full">			</span>
+			<span v-else class="w-[20px]">					<img v-if="item.iconJson" :src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson" alt="" class="w-4 h-4 inline-block rounded-full">
+				<span v-else class="w-4 h-4 inline-block bg-gray-200 rounded-full"></span>			</span>
 			<span class="font-medium text-slate-700 dark:text-white">{{ item.title }}</span>
 			<span v-if="!item.isFolder" class="text-slate-400 dark:text-slate-300 text-sm truncate max-w-[200px] whitespace-nowrap">{{ item.url }}</span>
 		</div>
@@ -168,17 +182,7 @@
 		<!-- 编辑书签对话框 -->
 		<div v-if="isEditDialogOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
 			<div class="bg-white dark:bg-gray-800 p-6 rounded-lg w-96">
-				<h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">{{ isCreateMode ? t('bookmarkManager.createBookmark') : t('bookmarkManager.editBookmark') }}</h3>
-				<div v-if="isCreateMode" class="mb-4">
-					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.type') }}</label>
-					<select
-					v-model="bookmarkType"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-				>
-						<option value="bookmark">{{ t('bookmarkManager.bookmark') }}</option>
-						<option value="folder">{{ t('bookmarkManager.folder') }}</option>
-					</select>
-				</div>
+				<h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">{{ isCreateMode ? (bookmarkType === 'bookmark' ? t('bookmarkManager.createBookmark') : t('bookmarkManager.createFolder')) : t('bookmarkManager.editBookmark') }}</h3>
 				<div class="mb-4">
 					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.title') }}</label>
 					<input
@@ -195,12 +199,8 @@
 				:placeholder="t('bookmarkManager.enterUrl')"
 			/>
 				</div>
-				<div class="mb-4">
-					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.parentFolder') }}</label>
-					<select v-model="currentEditBookmark.folderId" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
-						<option v-for="folder in allFolders" :key="folder.value" :value="folder.value">{{ folder.value === '0' ? t('bookmarkManager.rootDirectory') : folder.label }}</option>
-					</select>
-				</div>
+				<!-- 父文件夹选择框已隐藏，现在根据当前路径自动确定父文件夹 -->
+				<input v-model="currentEditBookmark.folderId" type="hidden" />
 				<div class="flex justify-end gap-2">
 					<button @click="closeEditDialog" class="px-4 py-2 border border-gray-300 rounded-md text-gray-800 dark:text-white">{{ t('bookmarkManager.cancel') }}</button>
 					<button @click="saveBookmarkChanges" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md">{{ t('bookmarkManager.confirm') }}</button>
@@ -576,7 +576,8 @@ const currentEditBookmark = ref({
 	title: '',
 	url: '',
 	folderId: '0' as string | number | undefined,
-} as { id: number; title: string; url: string; folderId?: string | number | undefined; });
+	iconJson: '',
+} as { id: number; title: string; url: string; folderId?: string | number | undefined; iconJson?: string; });
 
 
 // 右键菜单样式
@@ -970,8 +971,6 @@ function createNewBookmark() {
 	};
 	// 设置为创建模式
 	isCreateMode.value = true;
-	// 默认选择书签类型
-	bookmarkType.value = 'bookmark';
 	// 打开编辑对话框
 	isEditDialogOpen.value = true;
 }
@@ -1010,18 +1009,18 @@ async function saveBookmarkChanges() {
 			}
 		}
 
+		// 移除favicon自动获取逻辑，避免CORS问题
+		// 前端将使用项目内置的方式展示favicon
+
 		// 根据模式决定调用哪个接口
 		if (isCreateMode.value) {
 			// 创建新模式
-			// 根据folderId查找对应的文件夹标题作为parentUrl
-			let parentUrl = '0';
-			const selectedFolderId = currentEditBookmark.value.folderId ? currentEditBookmark.value.folderId.toString() : '0';
-			if (selectedFolderId !== '0') {
-				const selectedFolder = allFolders.value.find(folder => folder.value === selectedFolderId);
-				if (selectedFolder) {
-					parentUrl = selectedFolder.label; // 使用文件夹的title作为parentUrl
+			// 根据当前路径获取parentUrl，如果是根目录则为'0'
+				let parentUrl = '0';
+				// 获取当前路径的最后一个文件夹名称作为parentUrl
+				if (currentPath.value.length > 1) {
+					parentUrl = currentPath.value[currentPath.value.length - 1].name;
 				}
-			}
 			const createData = {
 				title: currentEditBookmark.value.title,
 				url: '',
@@ -1031,7 +1030,7 @@ async function saveBookmarkChanges() {
 				lanUrl: '',
 				icon: null,
 				openMethod: 0,
-				// IconJson在后端被标记为json:"-",不参与JSON序列化
+				iconJson: currentEditBookmark.value.iconJson || ''
 			};
 
 			// 根据类型添加相应的字段
@@ -1084,7 +1083,8 @@ async function saveBookmarkChanges() {
 				lanUrl: '',
 				icon: null,
 				openMethod: 0,
-				url: '' // 添加url属性以满足bookmarkInfo类型要求
+				url: '', // 添加url属性以满足bookmarkInfo类型要求
+				iconJson: currentEditBookmark.value.iconJson || ''
 			};
 
 			// 文件夹特殊处理：将URL设置为标题或空
@@ -1242,6 +1242,67 @@ async function importBookmarksToServerWithHTML(htmlContent: string) {
 	} finally {
 		uploadLoading.value = false;
 	}
+}
+
+// 导出书签为HTML格式
+function exportBookmarks() {
+	// 准备HTML文件头
+	let html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+`;
+	html += `<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+`;
+	html += `<TITLE>Bookmarks</TITLE>
+`;
+	html += `<H1>Bookmarks</H1>
+`;
+	html += `<DL><p>
+`;
+	
+	// 转换书签树为HTML
+	function convertTreeToHtml(nodes: TreeOption[], level: number = 0): string {
+		let result = ``;
+		
+		for (const node of nodes) {
+			if (node.isFolder) {
+				// 创建文件夹
+				result += `${'  '.repeat(level)}<DT><H3>${node.label}</H3>
+`;
+				result += `${'  '.repeat(level)}<DL><p>
+`;
+				// 递归处理子节点
+				result += convertTreeToHtml(node.children, level + 1);
+				result += `${'  '.repeat(level)}</DL><p>
+`;
+			} else if (node.bookmark) {
+				// 创建书签
+			const title = node.bookmark.title || '';
+			const url = node.bookmark.url || '';
+			const icon = node.bookmark.iconJson || node.rawNode?.iconJson || node.rawNode?.icon || '';
+			result += `${'  '.repeat(level)}<DT><A HREF="${url}" ${icon ? `ICON="${icon}"` : ''}>${title}</A>
+`;
+			}
+		}
+		
+		return result;
+	}
+	
+	// 转换所有节点
+	html += convertTreeToHtml(fullData.value.length > 0 ? fullData.value : bookmarkTree.value);
+	
+	// 关闭根DL标签
+	html += `</DL><p>
+`;
+	
+	// 下载文件
+	const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = 'bookmarks.html';
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
 }
 
 // 不再需要此函数，后端已直接处理排序值
@@ -1425,19 +1486,19 @@ function convertServerTreeToFrontendTree(serverTree: any[]): TreeOption[] {
 		const hasChildren = Array.isArray(node.children) && node.children.length > 0;
 
 		// 构建基本节点结构
-		const frontendNode: TreeOption = {
-			key: nodeKey,
-			label: node.title || '未命名',
-			isLeaf: !isFolder || !hasChildren,
-			isFolder: isFolder,
-			bookmark: isFolder ? undefined : { id: node.id, title: node.title, url: node.url || '' },
-			children: [],
-			rawNode: {
-				...node,
-				parentUrl: node.parentUrl || '0' // 确保parentUrl存在
-			},
-			disabledExpand: !hasChildren
-		};
+			const frontendNode: TreeOption = {
+				key: nodeKey,
+				label: node.title || '未命名',
+				isLeaf: !isFolder || !hasChildren,
+				isFolder: isFolder,
+				bookmark: isFolder ? undefined : { id: node.id, title: node.title, url: node.url || '', iconJson: node.iconJson || '' },
+				children: [],
+				rawNode: {
+					...node,
+					parentUrl: node.parentUrl || '0' // 确保parentUrl存在
+				},
+				disabledExpand: !hasChildren
+			};
 
 		// 递归处理子节点
 		if (hasChildren) {
