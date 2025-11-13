@@ -1,10 +1,10 @@
 <template>
 	<div
-		class="flex flex-col h-screen bg-white"
+		class="flex flex-col h-screen bg-white dark:bg-gray-800"
 		@contextmenu.prevent
 	>
 		<!-- 顶部标题栏 -->
-		<div class="p-4 border-b flex items-center justify-between bg-gray-50 relative">
+		<div class="p-4 border-b flex items-center justify-between bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 relative">
 			<!-- 移动端左栏展开按钮 -->
 			<NButton
 				v-if="isMobile"
@@ -32,7 +32,7 @@
 				{{ t('bookmarkManager.back') }}
 			</NButton>
 
-			<h1 class="text-xl font-bold text-gray-800 flex-1 text-center">{{ t('bookmarkManager.management') }}</h1>
+			<h1 class="text-xl font-bold text-gray-800 dark:text-white flex-1 text-center">{{ t('bookmarkManager.management') }}</h1>
 
 			<NButton
 				@click="createNewBookmark"
@@ -84,7 +84,7 @@
 			<div
 				v-show="showLeftPanel"
 				:class="[
-    isMobile ? 'fixed top-0 left-0 h-full bg-white z-50 rounded-r-lg shadow-lg overflow-auto transition-all duration-300 ease-in-out' : 'h-full bg-white border-r border-gray-200 overflow-auto',
+    isMobile ? 'fixed top-0 left-0 h-full bg-white dark:bg-gray-800 z-50 rounded-r-lg shadow-lg overflow-auto transition-all duration-300 ease-in-out' : 'h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-auto',
     isMobile && isPanelExpanded ? 'w-3/4' : isMobile ? 'w-12' : ''
   ]"
 				:style="{ width: !isMobile ? leftPanelWidth + 'px' : '' }"
@@ -112,9 +112,9 @@
 
 			<!-- 右侧书签列表 -->
 		<div class="flex-1 flex flex-col overflow-hidden">
-			<div class="p-2 border-b flex flex-col">
-				<!-- 面包屑导航 -->
-				<div class="flex items-center text-sm mb-2 text-gray-600">
+			<div class="p-2 border-b flex flex-col bg-white dark:bg-gray-800">
+					<!-- 面包屑导航 -->
+				<div class="flex items-center text-sm mb-2 text-gray-600 dark:text-gray-400">
 					<span v-for="(crumb, index) in currentPath" :key="index"
 					      class="cursor-pointer hover:text-blue-600"
 					      @click="handleBreadcrumbClick(crumb.id)">
@@ -127,28 +127,29 @@
 					:placeholder="t('bookmarkManager.searchPlaceholder')"
 					clearable
 					@input="handleSearch"
+					class="bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
 				/>
 			</div>
 
 				<!-- 书签列表 -->
-				<div class="flex-1 p-4 relative overflow-auto">
+				<div class="flex-1 p-4 relative overflow-auto bg-white dark:bg-gray-800">
 					<div class="grid grid-cols-1 gap-2">
-						<div v-if="filteredBookmarks.length === 0" class="text-center py-8 text-gray-400">
+						<div v-if="filteredBookmarks.length === 0" class="text-center py-8 text-gray-400 dark:text-gray-500">
 							{{ t('bookmarkManager.noData') }}
 						</div>
 
 						<div
 								v-for="item in allItems.filter(item => String(item.folderId || '0') === selectedFolder)"
 								:key="item.id"
-		class="flex items-center justify-between border p-2 rounded hover:bg-gray-50 cursor-pointer"
-		@contextmenu.prevent="openContextMenu($event, item)"
-		@click="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
-		@dblclick="item.isFolder"
-		:draggable="true"
-		@dragstart="handleDragStart($event, item)"
-		@dragend="handleDragEnd($event)"
-		@dragover="handleDragOver($event)"
-		@drop="handleDrop($event, item)"
+	class="flex items-center justify-between border border-gray-300 dark:border-gray-700 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer bg-white dark:bg-gray-800"
+	@contextmenu.prevent="openContextMenu($event, item)"
+	@click="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
+	@dblclick="item.isFolder"
+	:draggable="true"
+	@dragstart="handleDragStart($event, item)"
+	@dragend="handleDragEnd($event)"
+	@dragover="handleDragOver($event)"
+	@drop="handleDrop($event, item)"
 	>
 		<div class="flex items-center space-x-2">
 			<span v-if="item.isFolder" class="text-blue-600">
@@ -157,8 +158,8 @@
 				</svg>
 			</span>
 			<span v-else class="w-[20px]"></span>
-			<span class="font-medium text-slate-700">{{ item.title }}</span>
-			<span v-if="!item.isFolder" class="text-slate-400 text-sm truncate max-w-[200px] whitespace-nowrap">{{ item.url }}</span>
+			<span class="font-medium text-slate-700 dark:text-white">{{ item.title }}</span>
+			<span v-if="!item.isFolder" class="text-slate-400 dark:text-slate-300 text-sm truncate max-w-[200px] whitespace-nowrap">{{ item.url }}</span>
 		</div>
 	</div>
 					</div>
@@ -168,42 +169,42 @@
 
 		<!-- 编辑书签对话框 -->
 		<div v-if="isEditDialogOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-			<div class="bg-white p-6 rounded-lg w-96">
-				<h3 class="text-xl font-bold mb-4">{{ isCreateMode ? t('bookmarkManager.createBookmark') : t('bookmarkManager.editBookmark') }}</h3>
+			<div class="bg-white dark:bg-gray-800 p-6 rounded-lg w-96">
+				<h3 class="text-xl font-bold text-gray-800 dark:text-white mb-4">{{ isCreateMode ? t('bookmarkManager.createBookmark') : t('bookmarkManager.editBookmark') }}</h3>
 				<div v-if="isCreateMode" class="mb-4">
-					<label class="block mb-2">{{ t('bookmarkManager.type') }}</label>
+					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.type') }}</label>
 					<select
 						v-model="bookmarkType"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
 					>
 						<option value="bookmark">{{ t('bookmarkManager.bookmark') }}</option>
 						<option value="folder">{{ t('bookmarkManager.folder') }}</option>
 					</select>
 				</div>
 				<div class="mb-4">
-					<label class="block mb-2">{{ t('bookmarkManager.title') }}</label>
+					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.title') }}</label>
 					<input
 						v-model="currentEditBookmark.title"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
 						:placeholder="t('bookmarkManager.title')"
 					/>
 				</div>
 				<div v-if="(!isCreateMode && !currentBookmark?.isFolder) || (isCreateMode && bookmarkType === 'bookmark')" class="mb-4">
-					<label class="block mb-2">{{ t('bookmarkManager.url') }}</label>
+					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.url') }}</label>
 					<input
 						v-model="currentEditBookmark.url"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
 						:placeholder="t('bookmarkManager.enterUrl')"
 					/>
 				</div>
 				<div class="mb-4">
-					<label class="block mb-2">{{ t('bookmarkManager.parentFolder') }}</label>
-					<select v-model="currentEditBookmark.folderId" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.parentFolder') }}</label>
+					<select v-model="currentEditBookmark.folderId" class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white">
 						<option v-for="folder in allFolders" :key="folder.value" :value="folder.value">{{ folder.value === '0' ? t('bookmarkManager.rootDirectory') : folder.label }}</option>
 					</select>
 				</div>
 				<div class="flex justify-end gap-2">
-					<button @click="closeEditDialog" class="px-4 py-2 border border-gray-300 rounded-md">{{ t('bookmarkManager.cancel') }}</button>
+					<button @click="closeEditDialog" class="px-4 py-2 border border-gray-300 rounded-md text-gray-800 dark:text-white">{{ t('bookmarkManager.cancel') }}</button>
 					<button @click="saveBookmarkChanges" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md">{{ t('bookmarkManager.confirm') }}</button>
 				</div>
 			</div>
@@ -213,11 +214,11 @@
 		<div
 			v-if="isContextMenuOpen"
 			:style="contextMenuStyle"
-			class="fixed bg-white text-gray-700 shadow-lg rounded-md py-1 z-50 w-40 context-menu border border-gray-200"
+			class="fixed bg-white dark:bg-gray-800 text-gray-700 dark:text-white shadow-lg rounded-md py-1 z-50 w-40 context-menu border border-gray-200 dark:border-gray-700"
 			@contextmenu.prevent.stop
 		>
-			<div v-if="!currentBookmark?.isFolder" @click="handleEditBookmark" class="px-4 py-2 hover:bg-gray-100 cursor-pointer">{{ t('bookmarkManager.edit') }}</div>
-			<div @click="handleDeleteBookmark" class="px-4 py-2 hover:bg-gray-100 cursor-pointer">{{ t('bookmarkManager.delete') }}</div>
+			<div v-if="!currentBookmark?.isFolder" @click="handleEditBookmark" class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">{{ t('bookmarkManager.edit') }}</div>
+			<div @click="handleDeleteBookmark" class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">{{ t('bookmarkManager.delete') }}</div>
 		</div>
 	</div>
 </template>
@@ -711,7 +712,7 @@ const renderTreeLabel = ({ option }: { option: any }) => {
   return h(
     'div',
     {
-      class: 'px-1 py-0.5 rounded hover:bg-gray-100 cursor-default flex items-center',
+      class: 'px-1 py-0.5 rounded hover:bg-gray-100 cursor-default flex items-center text-gray-700 dark:text-white',
       onContextmenu: (e: MouseEvent) => {
         handleTreeContextMenu({ node: option, event: e })
       },
