@@ -795,7 +795,7 @@ return h('span', {}, displayText);
 				<template #header>
 					<div class="flex items-center justify-between w-full">
 						<span class="text-lg font-medium">{{ t('bookmarkManager.bookmarkList') }}</span>
-						<NButton type="primary" size="small" @click="navigateToBookmarkManager">
+						<NButton type="info" size="small" round @click="navigateToBookmarkManager">
 							{{ t('bookmarkManager.management') }}
 						</NButton>
 					</div>

@@ -6,60 +6,56 @@
 		<!-- 顶部标题栏 -->
 		<div class="p-4 border-b flex items-center justify-between bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 relative">
 			<!-- 移动端左栏展开按钮 -->
-			<NButton
+			<div
 				v-if="isMobile"
 				@click="togglePanel"
-				type="primary"
-				ghost
-				size="small"
-				class="flex items-center gap-1 text-blue-600 hover:bg-blue-100 transition-colors border border-blue-200"
+				class="flex items-center justify-center w-10 h-10 rounded-full bg-transparent text-gray-700 dark:text-white cursor-pointer transition-all hover:bg-gray-100 dark:hover:bg-gray-700"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
 				</svg>
-			</NButton>
+			</div>
 
-			<NButton
+			<div
 				@click="goBackToHome"
-				type="primary"
-				ghost
-				size="small"
-				class="flex items-center gap-1 text-blue-600 hover:bg-blue-100 transition-colors border border-blue-200"
+				class="flex items-center justify-center w-10 h-10 rounded-full bg-transparent text-gray-700 dark:text-white cursor-pointer transition-all hover:bg-gray-100 dark:hover:bg-gray-700"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
 				</svg>
-				{{ t('bookmarkManager.back') }}
-			</NButton>
+			</div>
 
 			<h1 class="text-xl font-bold text-gray-800 dark:text-white flex-1 text-center">{{ t('bookmarkManager.management') }}</h1>
 
-			<NButton
-				@click="createNewBookmark"
-				type="primary"
-				ghost
-				size="small"
-				class="flex items-center gap-1 text-purple-600 hover:bg-purple-100 transition-colors border border-purple-200"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-				</svg>
-				{{ t('bookmarkManager.create') }}
-			</NButton>
-
-			<NButton
-				@click="triggerImportBookmarks"
-				type="success"
-				ghost
-				size="small"
-				:loading="uploadLoading"
-				class="flex items-center gap-1 text-green-600 hover:bg-green-100 transition-colors border border-green-200"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-				</svg>
-				{{ t('bookmarkManager.importBookmarks') }}
-			</NButton>
+			<!-- 自定义下拉菜单 -->
+			<div class="relative custom-dropdown">
+				<div
+					class="flex items-center justify-center w-10 h-10 rounded-full bg-transparent text-gray-700 dark:text-white cursor-pointer transition-all hover:bg-gray-100 dark:hover:bg-gray-700 mr-2"
+					@click="isDropdownOpen = !isDropdownOpen"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+					</svg>
+				</div>
+				<!-- 下拉菜单内容 -->
+				<div
+					v-if="isDropdownOpen"
+					class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 text-gray-700 dark:text-white rounded-md shadow-lg py-1 z-[100000]"
+				>
+					<button
+						class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+						@click.stop="createNewBookmark(); isDropdownOpen = false"
+					>
+						{{ t('bookmarkManager.create') }}
+					</button>
+					<button
+						class="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 w-full text-left"
+						@click.stop="triggerImportBookmarks(); isDropdownOpen = false"
+					>
+						{{ t('bookmarkManager.importBookmarks') }}
+					</button>
+				</div>
+			</div>
 
 			<!-- 隐藏的文件输入框 -->
 			<input
@@ -112,7 +108,7 @@
 
 			<!-- 右侧书签列表 -->
 		<div class="flex-1 flex flex-col overflow-hidden">
-			<div class="p-2 border-b flex flex-col bg-white dark:bg-gray-800">
+			<div class="sticky top-0 z-10 p-2 border-b flex flex-col bg-white dark:bg-gray-800">
 					<!-- 面包屑导航 -->
 				<div class="flex items-center text-sm mb-2 text-gray-600 dark:text-gray-400">
 					<span v-for="(crumb, index) in currentPath" :key="index"
@@ -122,13 +118,15 @@
 						<span v-if="index < currentPath.length - 1" class="mx-1">/</span>
 					</span>
 				</div>
-				<n-input
-					v-model:value="searchQuery"
-					:placeholder="t('bookmarkManager.searchPlaceholder')"
-					clearable
-					@input="handleSearch"
-					class="bg-white dark:bg-gray-800 text-gray-800 dark:text-white"
-				/>
+				<div class="flex-1 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+					<n-input
+						v-model:value="searchQuery"
+						:placeholder="t('bookmarkManager.searchPlaceholder')"
+						clearable
+						@input="handleSearch"
+						class="w-full bg-transparent text-gray-800 dark:text-white bookmark-search-input"
+					/>
+				</div>
 			</div>
 
 				<!-- 书签列表 -->
@@ -139,7 +137,7 @@
 						</div>
 
 						<div
-								v-for="item in allItems.filter(item => String(item.folderId || '0') === selectedFolder)"
+								v-for="item in filteredBookmarks"
 								:key="item.id"
 	class="flex items-center justify-between border border-gray-300 dark:border-gray-700 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer bg-white dark:bg-gray-800"
 	@contextmenu.prevent="openContextMenu($event, item)"
@@ -174,9 +172,9 @@
 				<div v-if="isCreateMode" class="mb-4">
 					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.type') }}</label>
 					<select
-						v-model="bookmarkType"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
-					>
+					v-model="bookmarkType"
+					class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+				>
 						<option value="bookmark">{{ t('bookmarkManager.bookmark') }}</option>
 						<option value="folder">{{ t('bookmarkManager.folder') }}</option>
 					</select>
@@ -184,22 +182,22 @@
 				<div class="mb-4">
 					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.title') }}</label>
 					<input
-						v-model="currentEditBookmark.title"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
-						:placeholder="t('bookmarkManager.title')"
-					/>
+				v-model="currentEditBookmark.title"
+				class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+				:placeholder="t('bookmarkManager.title')"
+			/>
 				</div>
 				<div v-if="(!isCreateMode && !currentBookmark?.isFolder) || (isCreateMode && bookmarkType === 'bookmark')" class="mb-4">
 					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.url') }}</label>
 					<input
-						v-model="currentEditBookmark.url"
-						class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white"
-						:placeholder="t('bookmarkManager.enterUrl')"
-					/>
+				v-model="currentEditBookmark.url"
+				class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+				:placeholder="t('bookmarkManager.enterUrl')"
+			/>
 				</div>
 				<div class="mb-4">
 					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.parentFolder') }}</label>
-					<select v-model="currentEditBookmark.folderId" class="w-full px-3 py-2 border border-gray-300 rounded-md dark:text-white">
+					<select v-model="currentEditBookmark.folderId" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white dark:bg-gray-700 text-gray-800 dark:text-white">
 						<option v-for="folder in allFolders" :key="folder.value" :value="folder.value">{{ folder.value === '0' ? t('bookmarkManager.rootDirectory') : folder.label }}</option>
 					</select>
 				</div>
@@ -214,7 +212,7 @@
 		<div
 			v-if="isContextMenuOpen"
 			:style="contextMenuStyle"
-			class="fixed bg-white dark:bg-gray-800 text-gray-700 dark:text-white shadow-lg rounded-md py-1 z-50 w-40 context-menu border border-gray-200 dark:border-gray-700"
+			class="fixed bg-white dark:bg-gray-800 text-gray-700 dark:text-white shadow-lg py-1 z-50 w-40 context-menu border border-gray-200 dark:border-gray-700"
 			@contextmenu.prevent.stop
 		>
 			<div v-if="!currentBookmark?.isFolder" @click="handleEditBookmark" class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">{{ t('bookmarkManager.edit') }}</div>
@@ -227,7 +225,7 @@
 import { ref, computed, onMounted, onUnmounted, h, watch, nextTick } from 'vue'
 import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 // 不再直接导入SVG文件，使用内联方式
-import { NTree, NInput, NButton, useMessage } from 'naive-ui'
+import { NTree, NInput, useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { getList as getBookmarksList, add as addBookmark, update, deletes, addMultiple as addMultipleBookmarks } from '@/api/panel/bookmark'
 import { t } from '@/locales'
@@ -283,6 +281,8 @@ function collapsePanel() {
 		showLeftPanel.value = false
 	}, 300) // 等待动画完成再隐藏
 }
+
+
 
 // 开始调整大小
 function startResize(e: MouseEvent) {
@@ -387,18 +387,14 @@ const filteredBookmarks = computed(() => {
 	// 先获取所有项目（书签和文件夹）
 	let items = allItems.value
 
-	// 确保选中的文件夹是根目录'0'
-	const targetFolderId = '0' // 直接使用根目录ID，不依赖selectedFolder
-
-	// 调试输出前10个项目的folderId
-
-	// 强制按根目录进行过滤
-	items = items.filter(item => {
-		const itemFolderId = String(item.folderId || '0') // 确保folderId存在
-		const isMatch = itemFolderId === targetFolderId
-
-		return isMatch
-	})
+	// 当没有搜索查询时，按当前选中的文件夹过滤；有搜索时显示所有文件夹的内容
+	if (!searchQuery.value.trim()) {
+		const targetFolderId = selectedFolder.value || '0'
+		items = items.filter(item => {
+			const itemFolderId = String(item.folderId || '0') // 确保folderId存在
+			return itemFolderId === targetFolderId
+		})
+	}
 
 
 	// 应用搜索过滤
@@ -537,6 +533,9 @@ const isContextMenuOpen = ref(false);
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const currentBookmark = ref<(Bookmark & { isFolder?: boolean }) | null>(null);
+
+// 右上角菜单相关状态
+const isDropdownOpen = ref(false);
 
 // 树组件引用
 const treeRef = ref<InstanceType<typeof NTree> | null>(null);
@@ -724,10 +723,11 @@ const renderTreeLabel = ({ option }: { option: any }) => {
 function handleGlobalClick(event: MouseEvent) {
 	const path = event.composedPath() as HTMLElement[]
 	const clickedInsideMenu = path.some(
-		(el) => el.classList && el.classList.contains('context-menu')
+		(el) => el.classList && (el.classList.contains('context-menu') || el.closest('.custom-dropdown'))
 	)
 	if (!clickedInsideMenu) {
 		closeContextMenu()
+		isDropdownOpen.value = false
 	}
 }
 
@@ -1550,11 +1550,16 @@ onUnmounted(() => {
 
 </script>
 
-<style>
+<style scoped>
 .context-menu {
-position: fixed !important;
-z-index: 99999 !important;
-background-color: white;
+    position: fixed !important;
+    z-index: 99999 !important;
+    border-radius: 0.375rem !important;
+    border-right: 1px solid #e5e7eb !important;
+}
+
+.dark .context-menu {
+  border-right: 1px solid #4a5568 !important;
 }
 
 
@@ -1565,4 +1570,26 @@ background-color: white;
 	box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 	transition: width 0.3s ease-in-out, transform 0.3s ease-in-out;
 }
+
+    /* 移除输入组件根元素的边框 */
+    .bookmark-search-input.n-input {
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+    }
+    /* 移除内部输入组件的所有边框、阴影和圆角 */
+    .bookmark-search-input.n-input :deep(*) {
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+    /* 确保正确的布局 */
+    .bookmark-search-input.n-input :deep(.n-input__inner),
+    .bookmark-search-input.n-input :deep(.n-input__input-wrap) {
+      overflow: hidden !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
 </style>
