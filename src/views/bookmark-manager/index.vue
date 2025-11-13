@@ -155,7 +155,7 @@
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
 				</svg>
 			</span>
-			<span v-else class="w-[20px]"></span>
+			<span v-else class="w-[20px]">					<img v-if="item.iconJson" :src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson" alt="" class="w-4 h-4 inline-block rounded-full">					<img v-else :src="`https://www.google.com/s2/favicons?domain=${item.url}`" alt="" class="w-4 h-4 inline-block rounded-full">			</span>
 			<span class="font-medium text-slate-700 dark:text-white">{{ item.title }}</span>
 			<span v-if="!item.isFolder" class="text-slate-400 dark:text-slate-300 text-sm truncate max-w-[200px] whitespace-nowrap">{{ item.url }}</span>
 		</div>
@@ -323,6 +323,7 @@ interface Bookmark {
 	parentId?: number
 	createTime?: string
 	updateTime?: string
+	iconJson?: string
 }
 
 
@@ -704,7 +705,31 @@ const renderTreeLabel = ({ option }: { option: any }) => {
     // 显示文件夹标题
     content.push(nodeTitle);
   } else {
-    // 非文件夹节点只显示标题
+    // 非文件夹节点显示图标和标题
+    if (option.bookmark?.iconJson) {
+      // 处理base64图标，确保有数据URL前缀
+      let iconSrc = option.bookmark?.iconJson;
+      if (!iconSrc.startsWith('data:')) {
+        // 默认添加png格式的base64前缀
+        iconSrc = 'data:image/png;base64,' + iconSrc;
+      }
+      content.push(
+        h('img', {
+          src: iconSrc,
+          class: 'w-4 h-4 inline-block mr-1 rounded-full',
+          alt: 'bookmark icon'
+        })
+      );
+    } else {
+      // 默认图标
+      content.push(
+        h('img', {
+          src: 'https://www.google.com/s2/favicons?domain=' + option.bookmark?.url,
+          class: 'w-5 h-5 inline-block mr-1 rounded-full',
+          alt: 'default icon'
+        })
+      );
+    }
     content.push(nodeTitle);
   }
 
@@ -1440,18 +1465,18 @@ function buildBookmarkTree(bookmarks: any[]): TreeOption[] {
 		const isFolder = bookmark.isFolder === 1;
 		const nodeKey = String(bookmark.id || bookmark.Key || '0');
 		const node: TreeOption = {
-			key: nodeKey,
-			label: bookmark.title || '未命名',
-			isLeaf: !isFolder,
-			isFolder: isFolder,
-			bookmark: isFolder ? undefined : { id: bookmark.id, title: bookmark.title, url: bookmark.url || '' },
-			rawNode: {
-				...bookmark,
-				parentUrl: bookmark.parentUrl || bookmark.folderId || '0' // 合并parentUrl和folderId
-			},
-			children: [],
-			disabledExpand: true
-		};
+				key: nodeKey,
+				label: bookmark.title || '未命名',
+				isLeaf: !isFolder,
+				isFolder: isFolder,
+				bookmark: isFolder ? undefined : { id: bookmark.id, title: bookmark.title, url: bookmark.url || '', iconJson: bookmark.iconJson || '' },
+				rawNode: {
+					...bookmark,
+					parentUrl: bookmark.parentUrl || bookmark.folderId || '0' // 合并parentUrl和folderId
+				},
+				children: [],
+				disabledExpand: true
+			};
 		nodeMap.set(nodeKey, node);
 	}
 

@@ -292,7 +292,8 @@ function buildBookmarkTree(bookmarks: any[]): any[] {
           id: item.id,
           title: item.title,
           url: item.url,
-          folderId: folderId
+          folderId: folderId,
+          iconJson: item.iconJson || ''
         }
       }
       // 直接添加，不做排序，完全按照后端返回顺序
@@ -742,15 +743,25 @@ const displayText = nodeData.label || nodeData.title || '未命名';
 try {
 return h('div', { class: 'flex items-center' }, [
 isFolder ? h('img', {
-src: FolderOpenIcon,
-class: 'w-5 h-5 mr-2',
-onError: (e: Event) => {
-console.error('文件夹图标加载失败');
-const target = e.target as HTMLImageElement;
-target.onerror = null;
-target.style.display = 'none';
-}
-}) : h('span', { class: 'w-5 mr-2' }, ''), // 非文件夹节点保持对齐
+        src: FolderOpenIcon,
+        class: 'w-4 h-4 mr-2',
+        onError: (e: Event) => {
+          console.error('文件夹图标加载失败');
+          const target = e.target as HTMLImageElement;
+          target.onerror = null;
+          target.style.display = 'none';
+        }
+      }) : (() => {
+        let iconSrc = option.bookmark?.iconJson || '';
+        if (iconSrc && !iconSrc.startsWith('data:')) {
+          iconSrc = 'data:image/png;base64,' + iconSrc;
+        }
+        return h('img', {
+          src: iconSrc || 'https://www.google.com/s2/favicons?domain=' + option.bookmark?.url,
+          class: 'w-4 h-4 mr-2 rounded-full',
+          alt: 'bookmark icon'
+        });
+      })(), // 非文件夹节点显示图标
 // 节点文本
 h('span', {}, displayText)
 ]);

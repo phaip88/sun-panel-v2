@@ -202,9 +202,23 @@ func processDTNode(n *html.Node, parentUrl string, bookmarks *[]models.Bookmark,
 		if c.Type == html.ElementNode && c.Data == "a" {
 			// 这是一个书签
 			url := ""
+			iconJson := ""
 			for _, attr := range c.Attr {
 				if attr.Key == "href" {
 					url = attr.Val
+				} else if attr.Key == "icon" {
+					iconJson = attr.Val
+				}
+			}
+			// 检查是否有IMG子节点
+			for imgChild := c.FirstChild; imgChild != nil; imgChild = imgChild.NextSibling {
+				if imgChild.Type == html.ElementNode && imgChild.Data == "img" {
+					for _, imgAttr := range imgChild.Attr {
+						if imgAttr.Key == "src" {
+							iconJson = imgAttr.Val
+							break
+						}
+					}
 					break
 				}
 			}
@@ -218,6 +232,7 @@ func processDTNode(n *html.Node, parentUrl string, bookmarks *[]models.Bookmark,
 					IsFolder:  0,
 					ParentUrl: parentUrl,
 					UserId:    userId,
+					IconJson:  iconJson,
 				}
 				*bookmarks = append(*bookmarks, bookmark)
 			}

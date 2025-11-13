@@ -2,7 +2,7 @@ package models
 
 type Bookmark struct {
 	BaseModel
-	IconJson  string `gorm:"type:varchar(1000)" json:"-"`
+	IconJson  string `gorm:"type:varchar(1000)" json:"iconJson"`
 	Title     string `gorm:"type:varchar(50)" json:"title"`
 	Url       string `gorm:"type:varchar(1000)" json:"url"`
 	LanUrl    string `gorm:"type:varchar(1000)" json:"lanUrl"`
