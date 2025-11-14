@@ -302,8 +302,13 @@ func getFaviconBase64(urlStr string) (string, error) {
 		faviconURL = fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s", urlStr)
 	}
 
+	// Create an HTTP client with a timeout to avoid hanging requests
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
 	// Download the favicon image
-	resp, err := http.Get(faviconURL)
+	resp, err := client.Get(faviconURL)
 	if err != nil {
 		return "", err
 	}
@@ -352,20 +357,27 @@ func (a *Bookmark) Add(c *gin.Context) {
 	// 设置新的sort值
 	req.Sort = maxSort + 1
 
-	// 为书签（非文件夹）自动获取favicon
-	if req.IsFolder == 0 {
-		if faviconBase64, err := getFaviconBase64(req.Url); err == nil && faviconBase64 != "" {
-			req.IconJson = faviconBase64
-		}
-	}
-
-	// 插入数据库
+	// 插入数据库（不包含图标数据）
 	if err := global.Db.Create(&req).Error; err != nil {
 		apiReturn.Error(c, "添加书签失败")
 		return
 	}
 
+	// 返回结果给前端
 	apiReturn.SuccessData(c, req)
+
+	// 使用协程异步获取并更新图标
+	if req.IsFolder == 0 {
+		go func(id uint, url string, userId uint) {
+			if faviconBase64, err := getFaviconBase64(url); err == nil && faviconBase64 != "" {
+				// 更新书签的图标数据
+				updateData := map[string]interface{}{
+					"IconJson": faviconBase64,
+				}
+				global.Db.Model(&models.Bookmark{}).Where("id = ? AND user_id = ?", id, userId).UpdateColumns(updateData)
+			}
+		}(req.ID, req.Url, userInfo.ID)
+	}
 }
 
 // 定义树形结构的书签节点
@@ -510,16 +522,6 @@ func (a *Bookmark) Update(c *gin.Context) {
 		"UpdatedAt": time.Now(),
 	}
 
-	// 如果URL改变且是书签（非文件夹），重新获取favicon
-	if req.Url != bookmark.Url && bookmark.IsFolder == 0 {
-		if faviconBase64, err := getFaviconBase64(req.Url); err == nil && faviconBase64 != "" {
-			updateData["IconJson"] = faviconBase64
-		} else {
-			// 如果获取失败，清空现有favicon
-			updateData["IconJson"] = ""
-		}
-	}
-
 	// 如果parentUrl改变了，需要重新计算sort值
 	if bookmark.ParentUrl != req.ParentUrl {
 		// 获取新parentUrl下的最大sort值并+1
@@ -532,16 +534,40 @@ func (a *Bookmark) Update(c *gin.Context) {
 		updateData["Sort"] = req.Sort
 	}
 
-	if err := global.Db.Model(&bookmark).Updates(updateData).Error; err != nil {
-		apiReturn.Error(c, "更新书签失败")
+	// 保存更新（不包含图标数据）
+	if err := global.Db.Model(&models.Bookmark{}).Where("id = ? AND user_id = ?", bookmark.ID, userInfo.ID).Updates(updateData).Error; err != nil {
+		apiReturn.Error(c, "修改书签失败")
 		return
 	}
 
 	// 查询更新后的书签信息
 	updatedBookmark := models.Bookmark{}
-	global.Db.Where("id = ?", req.ID).First(&updatedBookmark)
+	if err := global.Db.Where("id = ? AND user_id = ?", req.ID, userInfo.ID).First(&updatedBookmark).Error; err != nil {
+		// 如果查询失败，返回更新前的基本信息
+		updatedBookmark := bookmark
+		updatedBookmark.Title = req.Title
+		updatedBookmark.Url = req.Url
+		updatedBookmark.LanUrl = req.LanUrl
+		updatedBookmark.ParentUrl = req.ParentUrl
+		updatedBookmark.Sort = updateData["Sort"].(int)
+		apiReturn.SuccessData(c, updatedBookmark)
+	} else {
+		// 返回更新后的信息
+		apiReturn.SuccessData(c, updatedBookmark)
+	}
 
-	apiReturn.SuccessData(c, updatedBookmark)
+	// 如果URL改变且是书签（非文件夹），异步重新获取favicon
+	if req.Url != bookmark.Url && bookmark.IsFolder == 0 {
+		go func(id uint, url string, userId uint) {
+			if faviconBase64, err := getFaviconBase64(url); err == nil && faviconBase64 != "" {
+				// 更新书签的图标数据
+				updateIconData := map[string]interface{}{
+					"IconJson": faviconBase64,
+				}
+				global.Db.Model(&models.Bookmark{}).Where("id = ? AND user_id = ?", id, userId).UpdateColumns(updateIconData)
+			}
+		}(bookmark.ID, req.Url, userInfo.ID)
+	}
 }
 
 // Deletes 删除书签
