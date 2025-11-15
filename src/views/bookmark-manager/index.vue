@@ -150,7 +150,7 @@
 					</div>
 
 					<div v-else class="py-2">
-						<template v-for="(item, index) in filteredBookmarks" :key="item.id">
+						<template v-for="item in filteredBookmarks" :key="item.id">
 							<!-- 插入位置指示器（在目标项上方） -->
 							<div
 								v-if="dragOverTarget === item.id && dragInsertPosition === 'before' && !item.isFolder"
@@ -180,11 +180,11 @@
 							>
 								<!-- 图标 -->
 								<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
-									<span v-if="item.isFolder" class="text-gray-400 dark:text-gray-500">
-										<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-										</svg>
-									</span>
+	<span v-if="item.isFolder" class="text-gray-400 dark:text-gray-500 group-hover:text-[#4285F4] dark:group-hover:text-[#4285F4] transition-colors">
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+		</svg>
+	</span>
 									<img v-else-if="item.iconJson"
 										:src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson"
 										alt=""
@@ -294,6 +294,8 @@ interface TreeOption {
 	children: TreeOption[]; // 子节点（必须初始化为数组）
 	rawNode: any; // 后端原始数据
 	disabledExpand: boolean; // 关键：是否禁用折叠（控制图标显示）
+	sort?: number; // 排序字段
+	ParentUrl?: string; // 父节点URL（缓存时使用）
 }
 
 const  BOOKMARKS_FULL_CACHE_KEY= 'bookmarksFullCache'
@@ -964,6 +966,8 @@ function handleDragEnd(event: DragEvent) {
 
 // 拖拽悬停
 const dragOverTarget = ref<string | number | null>(null);
+// 拖拽插入位置
+const dragInsertPosition = ref<'before' | 'after' | null>(null);
 
 function handleDragOver(event: DragEvent, item?: any) {
 	event.preventDefault();
@@ -1358,24 +1362,25 @@ async function handleDrop(event: DragEvent, targetItem: any) {
 			console.log('folderTreeData:', folderTreeData);
 
 			// Helper function to process nodes recursively for cache
-			const processCacheNode = (node) => {
-				// Extract parentUrl correctly from rawNode or ParentUrl property
-				const parentUrl = node.rawNode?.parentUrl || node.ParentUrl || '0';
+				const processCacheNode = (node: TreeOption) => {
+					// Extract parentUrl correctly from rawNode or ParentUrl property
+					const parentUrl = node.rawNode?.parentUrl || node.ParentUrl || '0';
 
-				// Process the current node
-				const processedNode = {
-					...node,
-					isFolder: node.isFolder ? 1 : 0,
-					ParentUrl: parentUrl.toString() // Convert to string
+					// Process the current node
+					const processedNode: TreeOption = {
+						...node,
+						isFolder: node.isFolder, // Keep as boolean (TreeOption interface requires boolean)
+						ParentUrl: parentUrl.toString(), // Convert to string and add to TreeOption
+						children: node.children || [] // Ensure children exists
+					};
+
+					// Recursively process children
+					if (processedNode.children.length > 0) {
+						processedNode.children = processedNode.children.map((child: TreeOption) => processCacheNode(child));
+					}
+
+					return processedNode;
 				};
-
-				// Recursively process children
-				if (node.children?.length > 0) {
-					processedNode.children = node.children.map(child => processCacheNode(child));
-				}
-
-				return processedNode;
-			};
 
 			// 存储完整的书签树数据（包含排序信息）到缓存，使用与页面加载一致的格式
 			ss.set(BOOKMARKS_CACHE_KEY, fullData.value.map(processCacheNode));
@@ -1895,9 +1900,9 @@ if (response.code === 0) {
 			serverBookmarks = response.data;
 		}
 		// 如果data是包含list字段的对象，使用list字段
-		else if (Array.isArray(response.data.list)) {
-			serverBookmarks = response.data.list;
-		}
+				else if (Array.isArray((response.data as any).list)) {
+					serverBookmarks = (response.data as any).list;
+				}
 	}
 
 	let treeDataResult = [];
