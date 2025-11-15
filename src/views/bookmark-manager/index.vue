@@ -595,10 +595,7 @@ function handleNodeExpand(node: any) {
 		selectedFolder.value = key;
 		// 确保选中状态正确更新
 		selectedKeysRef.value = [key];
-		// 尝试自动加载子节点（如果是懒加载）
-		if (treeRef.value) {
-			treeRef.value.loadNodeChildren(node);
-		}
+		
 	}
 }
 
