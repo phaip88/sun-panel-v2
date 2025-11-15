@@ -153,15 +153,21 @@
 						<div
 								v-for="item in filteredBookmarks"
 								:key="item.id"
-	class="flex items-center justify-between border border-gray-300 dark:border-gray-700 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer bg-white dark:bg-gray-800"
+	:class="[
+		'flex items-center justify-between border p-2 rounded cursor-pointer bg-white dark:bg-gray-800',
+		dragOverTarget === item.id && item.isFolder 
+			? 'border-blue-500 bg-blue-50 dark:bg-blue-900 border-2' 
+			: 'border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+	]"
 	@contextmenu.prevent="openContextMenu($event, item)"
 	@click="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
 	@dblclick="item.isFolder"
 	:draggable="true"
 	@dragstart="handleDragStart($event, item)"
-	@dragend="handleDragEnd($event)"
-	@dragover="handleDragOver($event)"
-	@drop="handleDrop($event, item)"
+	@dragend="handleDragEnd($event); dragOverTarget = null"
+	@dragover="handleDragOver($event, item)"
+	@dragleave="handleDragLeave($event)"
+	@drop="handleDrop($event, item); dragOverTarget = null"
 	>
 		<div class="flex items-center space-x-2">
 			<span v-if="item.isFolder" class="text-blue-600">
@@ -770,6 +776,58 @@ const renderTreeLabel = ({ option }: { option: any }) => {
     'div',
     {
       class: 'px-1 py-0.5 rounded hover:bg-gray-100 cursor-default flex items-center text-gray-700 dark:text-white',
+      draggable: true,
+      onDragstart: (e: DragEvent) => {
+        // 将树节点转换为可拖动的格式
+        const treeItem = {
+          id: option.key,
+          title: option.label,
+          url: option.bookmark?.url || '',
+          isFolder: option.isFolder || false,
+          folderId: option.rawNode?.parentUrl || '0',
+          iconJson: option.bookmark?.iconJson || '',
+          sort: option.sort || 0
+        };
+        handleDragStart(e, treeItem);
+      },
+      onDragend: (e: DragEvent) => {
+        handleDragEnd(e);
+      },
+      onDragover: (e: DragEvent) => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'move';
+        }
+        // 添加悬停效果
+        if (e.currentTarget instanceof HTMLElement) {
+          e.currentTarget.classList.add('bg-blue-100', 'dark:bg-blue-900');
+        }
+      },
+      onDragleave: (e: DragEvent) => {
+        // 移除悬停效果
+        if (e.currentTarget instanceof HTMLElement) {
+          e.currentTarget.classList.remove('bg-blue-100', 'dark:bg-blue-900');
+        }
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault();
+        // 移除悬停效果
+        if (e.currentTarget instanceof HTMLElement) {
+          e.currentTarget.classList.remove('bg-blue-100', 'dark:bg-blue-900');
+        }
+        // 将树节点转换为目标项格式
+        const treeItem = {
+          id: option.key,
+          title: option.label,
+          url: option.bookmark?.url || '',
+          isFolder: option.isFolder || false,
+          folderId: option.rawNode?.parentUrl || '0',
+          label: option.label,
+          iconJson: option.bookmark?.iconJson || '',
+          sort: option.sort || 0
+        };
+        handleDrop(e, treeItem);
+      },
       onContextmenu: (e: MouseEvent) => {
         handleTreeContextMenu({ node: option, event: e })
       },
@@ -804,6 +862,39 @@ function openBookmark(bookmark: Bookmark) {
 	}
 }
 
+// 检查是否是子节点（防止循环移动）
+function checkIsDescendant(parentId: string | number, childId: string | number): boolean {
+	const findNode = (nodes: any[], targetId: string | number): any => {
+		for (const node of nodes) {
+			if (String(node.id || node.key) === String(targetId)) {
+				return node;
+			}
+			if (node.children && node.children.length > 0) {
+				const found = findNode(node.children, targetId);
+				if (found) return found;
+			}
+		}
+		return null;
+	};
+	
+	const parentNode = findNode(fullData.value, parentId);
+	if (!parentNode) return false;
+	
+	// 递归检查子节点中是否包含childId
+	const checkChildren = (node: any): boolean => {
+		if (!node.children || node.children.length === 0) return false;
+		for (const child of node.children) {
+			if (String(child.id || child.key) === String(childId)) {
+				return true;
+			}
+			if (checkChildren(child)) return true;
+		}
+		return false;
+	};
+	
+	return checkChildren(parentNode);
+}
+
 // 拖拽开始
 function handleDragStart(event: DragEvent, item: any) {
 	draggedItem.value = item;
@@ -829,11 +920,24 @@ function handleDragEnd(event: DragEvent) {
 
 
 // 拖拽悬停
-function handleDragOver(event: DragEvent) {
+const dragOverTarget = ref<string | number | null>(null);
+
+function handleDragOver(event: DragEvent, item?: any) {
 	event.preventDefault();
 	if (event.dataTransfer) {
-		event.dataTransfer.dropEffect = 'move';
+		// 如果目标是文件夹，显示移动效果
+		if (item && (item.isFolder || item.isFolder === true)) {
+			event.dataTransfer.dropEffect = 'move';
+			dragOverTarget.value = item.id;
+		} else {
+			event.dataTransfer.dropEffect = 'move';
+			dragOverTarget.value = item?.id || null;
+		}
 	}
+}
+
+function handleDragLeave(event: DragEvent) {
+	dragOverTarget.value = null;
 }
 
 // 定义一个响应式数组用于前端临时排序展示
@@ -854,7 +958,7 @@ watch(fullData, () => {
 }, { immediate: true, deep: true });
 
 
-// 处理拖拽放置 - 实现正确的排序交换逻辑
+// 处理拖拽放置 - 支持移动到文件夹或排序
 async function handleDrop(event: DragEvent, targetItem: any) {
 	console.log('=== handleDrop 开始 ===');
 	event.preventDefault();
@@ -874,11 +978,81 @@ async function handleDrop(event: DragEvent, targetItem: any) {
 	const draggedItemData = draggedItem.value;
 	console.log('拖拽项:', draggedItemData.id, '目标项:', targetItem.id);
 
-	// 确保它们在同一个文件夹中
+	// 检查目标项是否为文件夹
+	const isTargetFolder = targetItem.isFolder || targetItem.isFolder === true;
+	
+	// 如果目标是文件夹，将拖动的项移动到该文件夹下
+	if (isTargetFolder) {
+		console.log('目标项是文件夹，移动到文件夹下');
+		
+		// 检查是否试图将文件夹移动到自己的子文件夹中（防止循环）
+		if (draggedItemData.isFolder) {
+			const isDescendant = checkIsDescendant(draggedItemData.id, targetItem.id);
+			if (isDescendant) {
+				ms.warning('不能将文件夹移动到自己的子文件夹中');
+				draggedItem.value = null;
+				return;
+			}
+		}
+		
+		// 获取目标文件夹的标题和ID
+		const targetFolderTitle = targetItem.title || targetItem.label;
+		const targetFolderId = String(targetItem.id);
+		
+		// 检查是否试图移动到自己的位置
+		const draggedParentId = String(draggedItemData.folderId || '0');
+		if (draggedParentId === targetFolderId) {
+			console.log('已经在目标文件夹中');
+			draggedItem.value = null;
+			return;
+		}
+		
+		// 获取目标文件夹下的最大sort值
+		const targetFolderItems = allItems.value.filter(item => 
+			String(item.folderId || '0') === targetFolderId
+		);
+		const maxSort = targetFolderItems.length > 0 
+			? Math.max(...targetFolderItems.map(item => item.sort || 0))
+			: 0;
+		
+		// 准备更新数据
+		const updateData = {
+			id: Number(draggedItemData.id),
+			title: draggedItemData.title,
+			url: draggedItemData.isFolder ? draggedItemData.title : (draggedItemData.url || ''),
+			parentUrl: targetFolderTitle, // 使用文件夹标题作为parentUrl
+			sort: maxSort + 1,
+			lanUrl: draggedItemData.lanUrl || '',
+			openMethod: draggedItemData.openMethod || 0,
+			icon: draggedItemData.icon || null,
+			iconJson: draggedItemData.iconJson || ''
+		};
+		
+		try {
+			// 调用更新接口
+			const response = await update(updateData);
+			if (response && response.code === 0) {
+				// 更新本地缓存
+				updateCacheAfterUpdate(response.data);
+				ms.success(t('bookmarkManager.moveSuccess') || '移动成功');
+			} else {
+				ms.error(`${t('bookmarkManager.moveFailed') || '移动失败'}: ${response?.msg || ''}`);
+			}
+		} catch (error) {
+			console.error('移动书签失败:', error);
+			ms.error(`${t('bookmarkManager.moveFailed') || '移动失败'}: ${(error as Error).message || ''}`);
+		}
+		
+		draggedItem.value = null;
+		return;
+	}
+
+	// 如果不是文件夹，执行原有的排序逻辑
 	const draggedFolderId = String(draggedItemData.folderId || '0');
 	const targetFolderId = String(targetItem.folderId || '0');
 	console.log('检查文件夹:', { draggedFolderId, targetFolderId });
 
+	// 确保它们在同一个文件夹中才能排序
 	if (draggedFolderId !== targetFolderId) {
 		console.log('不在同一文件夹中');
 		ms.warning('只能在同一文件夹内拖拽排序');
@@ -1307,9 +1481,8 @@ async function saveBookmarkChanges() {
 
 			// 检查响应状态
 				if (createResponse && createResponse.code === 0) {
-					ss.remove(BOOKMARKS_FULL_CACHE_KEY);
-					ss.remove(BOOKMARKS_CACHE_KEY);
-					await refreshBookmarks();
+					// 更新本地缓存数据，而不是强制刷新
+					updateCacheAfterAdd(createResponse.data);
 					ms.success(t('bookmarkManager.createSuccess'));
 					isEditDialogOpen.value = false;
 					isCreateMode.value = false;
@@ -1353,7 +1526,8 @@ async function saveBookmarkChanges() {
 
 				// 检查响应状态
 				if (updateResponse && updateResponse.code === 0) {
-					await refreshBookmarks(true);
+					// 更新本地缓存数据，而不是强制刷新
+					updateCacheAfterUpdate(updateResponse.data);
 					ms.success(t('bookmarkManager.updateSuccess'));
 					isEditDialogOpen.value = false;
 				} else {
@@ -1383,33 +1557,18 @@ async function deleteBookmark(bookmark: Bookmark) {
 			 try {
 				 const response = await deletes([Number(bookmark.id)]);
 				 if (response.code === 0) {
-					 // 清除所有可能的缓存
-					 ss.remove(BOOKMARKS_CACHE_KEY);
-					 ss.remove(BOOKMARKS_FULL_CACHE_KEY);
-					 ss.remove('bookmark_tree_cache');
-					 ss.remove('bookmark_list_cache');
-
 					 // 重置选中状态
 					 if (selectedBookmarkId.value === bookmark.id.toString()) {
 						 selectedBookmarkId.value = '';
 					 }
 
-					 // 关键修改：清空现有的响应式数据
-					 bookmarkTree.value = [];
-					 // 使用类型断言来安全地访问和删除全局变量
-					 if ((globalThis as any).__bookmarksFullData) {
-						 delete (globalThis as any).__bookmarksFullData;
-					 }
-					 // 清空响应式的fullData变量
-					 fullData.value = [];
-
-					 // 强制刷新数据
-					 await refreshBookmarks(true);
+					 // 更新本地缓存数据，而不是强制刷新
+					 updateCacheAfterDelete(Number(bookmark.id), bookmark.isFolder || false);
 
 					 // 使用setTimeout确保DOM更新后显示成功消息
 					 setTimeout(() => {
 						 ms.success(t('common.success'));
-					 }, 500); // 增加延迟时间
+					 }, 100);
 				 } else {
 					 ms.error(`${t('common.failed')}: ${response.msg}`);
 				 }
@@ -1718,7 +1877,8 @@ if (response.code === 0) {
 	}
 
 	// 存储到缓存（与首页保持一致，缓存原始服务器数据）
-ss.set(BOOKMARKS_CACHE_KEY, data);
+	// 缓存response.data，确保包含完整的服务器响应数据
+	ss.set(BOOKMARKS_CACHE_KEY, response.data);
 
 	// 更新完整数据（树结构）
 	fullData.value = treeDataResult;
@@ -1949,6 +2109,267 @@ function buildBookmarkTree(bookmarks: any[]): TreeOption[] {
 	}
 
 	return rootNodes;
+}
+
+// 更新本地缓存数据的辅助函数
+// 将书签数据转换为缓存格式
+function convertBookmarkToCacheNode(bookmark: any): any {
+	const isFolder = bookmark.isFolder === 1 || bookmark.isFolder === true;
+	return {
+		id: bookmark.id,
+		title: bookmark.title,
+		url: bookmark.url || '',
+		iconJson: bookmark.iconJson || '',
+		isFolder: isFolder ? 1 : 0,
+		parentUrl: bookmark.parentUrl || '0',
+		sort: bookmark.sort || 0,
+		children: []
+	};
+}
+
+// 在树中查找节点（支持通过id或title查找）
+function findNodeInTree(nodes: any[], idOrTitle: string | number): any {
+	for (const node of nodes) {
+		// 通过id或key匹配
+		if (String(node.id || node.key) === String(idOrTitle)) {
+			return node;
+		}
+		// 通过title匹配（用于parentUrl是文件夹标题的情况）
+		if (node.title === idOrTitle || node.label === idOrTitle) {
+			return node;
+		}
+		if (node.children && node.children.length > 0) {
+			const found = findNodeInTree(node.children, idOrTitle);
+			if (found) return found;
+		}
+	}
+	return null;
+}
+
+// 从树中删除节点
+function removeNodeFromTree(nodes: any[], id: string | number): boolean {
+	for (let i = 0; i < nodes.length; i++) {
+		if (String(nodes[i].id || nodes[i].key) === String(id)) {
+			nodes.splice(i, 1);
+			return true;
+		}
+		if (nodes[i].children && nodes[i].children.length > 0) {
+			if (removeNodeFromTree(nodes[i].children, id)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// 更新缓存：添加书签
+function updateCacheAfterAdd(bookmark: any) {
+	try {
+		const cachedData = ss.get(BOOKMARKS_CACHE_KEY);
+		if (!cachedData) {
+			// 如果没有缓存，刷新数据
+			refreshBookmarks(false);
+			return;
+		}
+
+		// 将新书签转换为缓存格式
+		const newBookmark = convertBookmarkToCacheNode(bookmark);
+		
+		// 处理缓存数据
+		let cacheList: any[] = [];
+		if (Array.isArray(cachedData)) {
+			cacheList = cachedData;
+		} else if (cachedData.list && Array.isArray(cachedData.list)) {
+			cacheList = cachedData.list;
+		} else {
+			// 如果格式不对，刷新数据
+			refreshBookmarks(false);
+			return;
+		}
+
+		// 如果是根节点（parentUrl为'0'），直接添加到列表
+		if (newBookmark.parentUrl === '0') {
+			cacheList.push(newBookmark);
+			// 按sort排序根列表
+			cacheList.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+		} else {
+			// 查找父节点并添加到其children中
+			const parentNode = findNodeInTree(cacheList, newBookmark.parentUrl);
+			if (parentNode) {
+				if (!parentNode.children) {
+					parentNode.children = [];
+				}
+				parentNode.children.push(newBookmark);
+				// 按sort排序
+				parentNode.children.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+			} else {
+				// 如果找不到父节点，添加到根列表
+				cacheList.push(newBookmark);
+				// 按sort排序根列表
+				cacheList.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+			}
+		}
+
+		// 更新缓存
+		ss.set(BOOKMARKS_CACHE_KEY, cacheList);
+		
+		// 重新构建树并更新UI
+		const treeDataResult = convertServerTreeToFrontendTree(cacheList);
+		fullData.value = treeDataResult;
+		const folderTreeData = filterFoldersOnly(treeDataResult);
+		if (Array.isArray(folderTreeData) && folderTreeData.length > 0) {
+			bookmarkTree.value = JSON.parse(JSON.stringify(folderTreeData));
+		}
+	} catch (error) {
+		console.error('更新缓存失败，刷新数据:', error);
+		refreshBookmarks(false);
+	}
+}
+
+// 更新缓存：修改书签
+function updateCacheAfterUpdate(bookmark: any) {
+	try {
+		const cachedData = ss.get(BOOKMARKS_CACHE_KEY);
+		if (!cachedData) {
+			refreshBookmarks(false);
+			return;
+		}
+
+		let cacheList: any[] = [];
+		if (Array.isArray(cachedData)) {
+			cacheList = cachedData;
+		} else if (cachedData.list && Array.isArray(cachedData.list)) {
+			cacheList = cachedData.list;
+		} else {
+			refreshBookmarks(false);
+			return;
+		}
+
+		// 查找并更新节点
+		const node = findNodeInTree(cacheList, bookmark.id);
+		if (node) {
+			// 保存原来的parentUrl用于比较
+			const oldParentUrl = node.parentUrl || '0';
+			const newParentUrl = bookmark.parentUrl || '0';
+			
+			// 更新节点属性
+			node.title = bookmark.title;
+			node.url = bookmark.url || '';
+			node.iconJson = bookmark.iconJson || '';
+			node.sort = bookmark.sort || 0;
+			
+			// 如果parentUrl改变了，需要移动节点
+			if (oldParentUrl !== newParentUrl) {
+				// 从原位置删除
+				removeNodeFromTree(cacheList, bookmark.id);
+				// 更新parentUrl
+				node.parentUrl = newParentUrl;
+				// 添加到新位置
+				if (newParentUrl === '0') {
+					cacheList.push(node);
+					// 按sort排序
+					cacheList.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+				} else {
+					const parentNode = findNodeInTree(cacheList, newParentUrl);
+					if (parentNode) {
+						if (!parentNode.children) {
+							parentNode.children = [];
+						}
+						parentNode.children.push(node);
+						parentNode.children.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+					} else {
+						// 如果找不到父节点，添加到根列表
+						cacheList.push(node);
+						cacheList.sort((a: any, b: any) => (a.sort || 0) - (b.sort || 0));
+					}
+				}
+			} else {
+				// parentUrl没变，直接更新
+				node.parentUrl = newParentUrl;
+			}
+		} else {
+			// 如果找不到节点，刷新数据
+			refreshBookmarks(false);
+			return;
+		}
+
+		// 更新缓存
+		ss.set(BOOKMARKS_CACHE_KEY, cacheList);
+		
+		// 重新构建树并更新UI
+		const treeDataResult = convertServerTreeToFrontendTree(cacheList);
+		fullData.value = treeDataResult;
+		const folderTreeData = filterFoldersOnly(treeDataResult);
+		if (Array.isArray(folderTreeData) && folderTreeData.length > 0) {
+			bookmarkTree.value = JSON.parse(JSON.stringify(folderTreeData));
+		}
+	} catch (error) {
+		console.error('更新缓存失败，刷新数据:', error);
+		refreshBookmarks(false);
+	}
+}
+
+// 更新缓存：删除书签（包括递归删除子项）
+function updateCacheAfterDelete(bookmarkId: number, isFolder: boolean) {
+	try {
+		const cachedData = ss.get(BOOKMARKS_CACHE_KEY);
+		if (!cachedData) {
+			refreshBookmarks(false);
+			return;
+		}
+
+		let cacheList: any[] = [];
+		if (Array.isArray(cachedData)) {
+			cacheList = cachedData;
+		} else if (cachedData.list && Array.isArray(cachedData.list)) {
+			cacheList = cachedData.list;
+		} else {
+			refreshBookmarks(false);
+			return;
+		}
+
+		// 递归删除函数
+		const deleteNodeRecursive = (nodes: any[], id: number): boolean => {
+			for (let i = 0; i < nodes.length; i++) {
+				if (nodes[i].id === id) {
+					// 如果是文件夹，先删除所有子项
+					if (nodes[i].isFolder === 1 && nodes[i].children) {
+						const childrenIds = nodes[i].children.map((child: any) => child.id);
+						for (const childId of childrenIds) {
+							deleteNodeRecursive(cacheList, childId);
+						}
+					}
+					nodes.splice(i, 1);
+					return true;
+				}
+				if (nodes[i].children && nodes[i].children.length > 0) {
+					if (deleteNodeRecursive(nodes[i].children, id)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		};
+
+		// 删除节点
+		deleteNodeRecursive(cacheList, bookmarkId);
+
+		// 更新缓存
+		ss.set(BOOKMARKS_CACHE_KEY, cacheList);
+		
+		// 重新构建树并更新UI
+		const treeDataResult = convertServerTreeToFrontendTree(cacheList);
+		fullData.value = treeDataResult;
+		const folderTreeData = filterFoldersOnly(treeDataResult);
+		if (Array.isArray(folderTreeData) && folderTreeData.length > 0) {
+			bookmarkTree.value = JSON.parse(JSON.stringify(folderTreeData));
+		} else {
+			bookmarkTree.value = [];
+		}
+	} catch (error) {
+		console.error('更新缓存失败，刷新数据:', error);
+		refreshBookmarks(false);
+	}
 }
 
 const handleResize = () => {

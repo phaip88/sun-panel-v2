@@ -599,8 +599,8 @@ func (a *Bookmark) Deletes(c *gin.Context) {
 
 		// 如果是文件夹，需要删除其下所有的书签和子文件夹
 		if bookmark.IsFolder == 1 {
-			// 递归获取所有子项ID
-			childIds := getAllChildBookmarkIds(userInfo.ID, bookmark.Title)
+			// 递归获取所有子项ID，使用文件夹的Url作为parentUrl（对于文件夹，Url = Title）
+			childIds := getAllChildBookmarkIds(userInfo.ID, bookmark.Url)
 			allIdsToDelete = append(allIdsToDelete, childIds...)
 		}
 	}
@@ -632,9 +632,9 @@ func getAllChildBookmarkIds(userId uint, parentUrl string) []int {
 
 	for _, child := range childBookmarks {
 		childIds = append(childIds, int(child.ID))
-		// 如果子项也是文件夹，递归获取其子项
+		// 如果子项也是文件夹，递归获取其子项，使用文件夹的Url作为parentUrl（对于文件夹，Url = Title）
 		if child.IsFolder == 1 {
-			grandChildIds := getAllChildBookmarkIds(userId, child.Title)
+			grandChildIds := getAllChildBookmarkIds(userId, child.Url)
 			childIds = append(childIds, grandChildIds...)
 		}
 	}
