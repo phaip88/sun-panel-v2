@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -295,11 +296,15 @@ func getFaviconBase64(urlStr string) (string, error) {
 		urlStr = "https://" + urlStr
 	}
 
-	// Get the favicon URL from the website
-	faviconURL, err := siteFavicon.GetOneFaviconURL(urlStr)
-	if err != nil {
-		// If GetOneFaviconURL fails, try Google favicon service as fallback
-		faviconURL = fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s", urlStr)
+	// Parse the URL to get the host for Google's service
+	urlInfo, parseErr := url.Parse(urlStr)
+	var googleFaviconURL string
+	if parseErr == nil {
+		// Use the host part for Google's favicon service
+		googleFaviconURL = fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s", urlInfo.Host)
+	} else {
+		// Fall back to using the original URL if parsing fails
+		googleFaviconURL = fmt.Sprintf("https://www.google.com/s2/favicons?domain=%s", urlStr)
 	}
 
 	// Create an HTTP client with a timeout to avoid hanging requests
@@ -307,8 +312,46 @@ func getFaviconBase64(urlStr string) (string, error) {
 		Timeout: 10 * time.Second,
 	}
 
-	// Download the favicon image
-	resp, err := client.Get(faviconURL)
+	// Create a request with User-Agent header to avoid being blocked
+	createRequest := func(urlStr string) (*http.Request, error) {
+		req, err := http.NewRequest("GET", urlStr, nil)
+		if err != nil {
+			return nil, err
+		}
+		// Add User-Agent to simulate browser request
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+		return req, nil
+	}
+
+	// First try: get favicon from the website itself
+	faviconURL, err := siteFavicon.GetOneFaviconURL(urlStr)
+	if err == nil {
+		// Try downloading from the website's own favicon URL
+		req, err := createRequest(faviconURL)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				defer resp.Body.Close()
+				data, err := io.ReadAll(resp.Body)
+				if err == nil {
+					// Get Content-Type from response header
+					contentType := resp.Header.Get("Content-Type")
+					if contentType == "" {
+						contentType = "image/png" // Default to PNG if not specified
+					}
+					return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+				}
+			}
+		}
+		// If any step fails, fall through to try Google's service
+	}
+
+	// Second try: use Google's favicon service
+	req, err := createRequest(googleFaviconURL)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
