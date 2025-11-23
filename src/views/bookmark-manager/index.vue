@@ -150,80 +150,87 @@
 						{{ t('bookmarkManager.noData') }}
 					</div>
 
-					<div v-else class="py-2">
+					<div v-else class="py-2" @dragover.prevent="handleContainerDragOver">
 						<template v-for="item in filteredBookmarks" :key="item.id">
-							<!-- 插入位置指示器(在目标项上方) -->
-							<div
-								v-if="dragOverTarget === item.id && dragInsertPosition === 'before'"
-								class="h-0.5 bg-blue-500 mx-4"
-							></div>
+							<!-- 相对定位容器,用于包含绝对定位的插入横线 -->
+							<div class="relative my-1">
+								<!-- 插入位置指示器(在目标项上方) -->
+								<div
+									v-if="dragOverTarget === item.id && dragInsertPosition === 'before'"
+									class="absolute top-0 left-4 right-4 z-10 flex items-center"
+									style="pointer-events: none; transform: translateY(-3px);"
+								>
+									<div class="w-full h-[2px] bg-blue-500"></div>
+								</div>
 
-							<div
-								:class="[
-									'flex items-center px-4 py-2 cursor-pointer transition-colors group',
-									dragOverTarget === item.id && item.isFolder
-										? 'bg-blue-50 dark:bg-blue-900'
-										: dragOverTarget === item.id && !item.isFolder
-										? 'bg-blue-50 dark:bg-blue-900'
-										: selectedBookmarkId === String(item.id) || (item.isFolder && selectedFolder === String(item.id))
-										? 'bg-gray-100 dark:bg-gray-700'
-										: 'hover:bg-gray-50 dark:hover:bg-gray-700'
-								]"
-								@contextmenu.prevent="!isMobile ? openContextMenu($event, item) : null"
-								@click="focusedItemId = String(item.id)"
-								@dblclick="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
-								:draggable="true"
-								@dragstart="handleDragStart($event, item)"
-								@dragend="handleDragEnd($event); dragOverTarget = null; dragInsertPosition = null"
-								@dragover="handleDragOver($event, item)"
-								@dragleave="handleDragLeave($event)"
-								@drop="handleDrop($event, item); dragOverTarget = null; dragInsertPosition = null"
-							>
-								<!-- 图标 -->
-								<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
+								<div
+									:class="[
+										'flex items-center px-4 py-2 cursor-pointer transition-colors group',
+										dragOverTarget === item.id && item.isFolder && dragInsertPosition === null
+											? 'bg-blue-50 dark:bg-blue-900'
+											: selectedBookmarkId === String(item.id) || (item.isFolder && selectedFolder === String(item.id))
+											? 'bg-gray-100 dark:bg-gray-700'
+											: 'hover:bg-gray-50 dark:hover:bg-gray-700'
+									]"
+									@contextmenu.prevent="!isMobile ? openContextMenu($event, item) : null"
+									@click="focusedItemId = String(item.id)"
+									@dblclick="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
+									:draggable="true"
+									@dragstart="handleDragStart($event, item)"
+									@dragend="handleDragEnd($event); dragOverTarget = null; dragInsertPosition = null"
+									@dragover="handleDragOver($event, item)"
+									@dragleave="handleDragLeave($event)"
+									@drop="handleDrop($event, item); dragOverTarget = null; dragInsertPosition = null"
+								>
+									<!-- 图标 -->
+									<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
 	<span v-if="item.isFolder" class="text-gray-400 dark:text-gray-500 group-hover:text-[#4285F4] dark:group-hover:text-[#4285F4] transition-colors">
 		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
 		</svg>
 	</span>
-									<img v-else-if="item.iconJson"
-										:src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson"
-										alt=""
-										class="w-4 h-4 rounded"
-										onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-									>
-									<span v-else class="w-4 h-4 bg-gray-200 dark:bg-gray-600 rounded" style="display: none;"></span>
-								</div>
+										<img v-else-if="item.iconJson"
+											:src="item.iconJson.startsWith('data:') ? item.iconJson : 'data:image/png;base64,' + item.iconJson"
+											alt=""
+											class="w-4 h-4 rounded"
+											onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+										>
+										<span v-else class="w-4 h-4 bg-gray-200 dark:bg-gray-600 rounded" style="display: none;"></span>
+									</div>
 
-								<!-- 文本 - 聚焦时在标题后显示URL -->
-								<div class="flex-1 min-w-0">
-									<div class="text-sm text-gray-900 dark:text-white truncate">
-										<span>{{ item.title }}</span>
-										<span v-if="!item.isFolder && item.url && focusedItemId === String(item.id)" class="text-gray-500 dark:text-gray-400 transition-opacity ml-2">
-											{{ item.url }}
-										</span>
-										<span v-else-if="item.isFolder && focusedItemId === String(item.id)" class="text-gray-400 dark:text-gray-500 italic transition-opacity ml-2">
-											{{ t('bookmarkManager.folder') || '文件夹' }}
-										</span>
+									<!-- 文本 - 聚焦时在标题后显示URL -->
+									<div class="flex-1 min-w-0">
+										<div class="text-sm text-gray-900 dark:text-white truncate">
+											<span>{{ item.title }}</span>
+											<span v-if="!item.isFolder && item.url && focusedItemId === String(item.id)" class="text-gray-500 dark:text-gray-400 transition-opacity ml-2">
+												{{ item.url }}
+											</span>
+											<span v-else-if="item.isFolder && focusedItemId === String(item.id)" class="text-gray-400 dark:text-gray-500 italic transition-opacity ml-2">
+												{{ t('bookmarkManager.folder') || '文件夹' }}
+											</span>
+										</div>
+									</div>
+
+									<!-- 三个点菜单 - 一直显示，颜色与右上角一致 -->
+									<div
+										class="flex-shrink-0 w-6 h-6 flex items-center justify-center ml-2 cursor-pointer text-gray-700 dark:text-white"
+										@click.stop="openContextMenu($event, item)"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+										</svg>
 									</div>
 								</div>
 
-								<!-- 三个点菜单 - 一直显示，颜色与右上角一致 -->
+								<!-- 插入位置指示器(在目标项下方) -->
 								<div
-									class="flex-shrink-0 w-6 h-6 flex items-center justify-center ml-2 cursor-pointer text-gray-700 dark:text-white"
-									@click.stop="openContextMenu($event, item)"
+									v-if="dragOverTarget === item.id && dragInsertPosition === 'after'"
+									class="absolute bottom-0 left-4 right-4 z-10 flex items-center"
+									style="pointer-events: none; transform: translateY(3px);"
 								>
-									<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-									</svg>
+									<div class="w-full h-[2px] bg-blue-500"></div>
 								</div>
 							</div>
-
-							<!-- 插入位置指示器(在目标项下方) -->
-							<div
-								v-if="dragOverTarget === item.id && dragInsertPosition === 'after'"
-								class="h-0.5 bg-blue-500 mx-4"
-							></div>
 						</template>
 					</div>
 				</div>
@@ -984,7 +991,15 @@ const dragOverTarget = ref<string | number | null>(null);
 const dragInsertPosition = ref<'before' | 'after' | null>(null);
 
 function handleDragOver(event: DragEvent, item?: any) {
+	// 阻止默认行为并设置允许放置
 	event.preventDefault();
+	event.stopPropagation();
+	
+	// 始终设置为move效果,避免显示禁用光标
+	if (event.dataTransfer) {
+		event.dataTransfer.dropEffect = 'move';
+	}
+	
 	if (!item || !event.currentTarget) {
 		dragOverTarget.value = null;
 		dragInsertPosition.value = null;
@@ -996,36 +1011,45 @@ function handleDragOver(event: DragEvent, item?: any) {
 	const itemHeight = rect.height;
 	const mousePosition = mouseY - rect.top;
 
-	if (event.dataTransfer) {
-		if (item && (item.isFolder || item.isFolder === true)) {
-			// 文件夹逻辑：上1/3插入前，中1/3移动到文件夹，下1/3插入后
-			if (mousePosition < itemHeight / 3) {
-				// 上1/3 - 插入到文件夹前
-				event.dataTransfer.dropEffect = 'move';
-				dragOverTarget.value = item.id;
-				dragInsertPosition.value = 'before';
-			} else if (mousePosition > (2 * itemHeight) / 3) {
-				// 下1/3 - 插入到文件夹后
-				event.dataTransfer.dropEffect = 'move';
-				dragOverTarget.value = item.id;
-				dragInsertPosition.value = 'after';
-			} else {
-				// 中间 - 移动到文件夹内
-				event.dataTransfer.dropEffect = 'move';
-				dragOverTarget.value = item.id;
-				dragInsertPosition.value = null;
-			}
-		} else {
-			// 普通项逻辑：上半部分插入前，下半部分插入后
-			event.dataTransfer.dropEffect = 'move';
+	if (item && (item.isFolder || item.isFolder === true)) {
+		// 文件夹逻辑：上1/3插入前，中1/3移动到文件夹，下1/3插入后
+		if (mousePosition < itemHeight / 3) {
+			// 上1/3 - 插入到文件夹前
 			dragOverTarget.value = item.id;
-			dragInsertPosition.value = mousePosition < itemHeight / 2 ? 'before' : 'after';
+			dragInsertPosition.value = 'before';
+		} else if (mousePosition > (2 * itemHeight) / 3) {
+			// 下1/3 - 插入到文件夹后
+			dragOverTarget.value = item.id;
+			dragInsertPosition.value = 'after';
+		} else {
+			// 中间 - 移动到文件夹内
+			dragOverTarget.value = item.id;
+			dragInsertPosition.value = null;
 		}
+	} else {
+		// 普通项逻辑：上半部分插入前，下半部分插入后
+		dragOverTarget.value = item.id;
+		dragInsertPosition.value = mousePosition < itemHeight / 2 ? 'before' : 'after';
 	}
 }
 
+// 容器级别的dragover处理,防止在间隙处显示禁用光标
+function handleContainerDragOver(event: DragEvent) {
+	event.preventDefault();
+	if (event.dataTransfer) {
+		event.dataTransfer.dropEffect = 'move';
+	}
+}
+
+
 function handleDragLeave(event: DragEvent) {
-	dragOverTarget.value = null;
+	// 阻止默认行为
+	event.preventDefault();
+	// 只在真正离开元素时清除状态(避免子元素触发)
+	if (event.currentTarget === event.target || !(event.currentTarget as HTMLElement)?.contains(event.relatedTarget as Node)) {
+		dragOverTarget.value = null;
+		dragInsertPosition.value = null;
+	}
 }
 
 // 定义一个响应式数组用于前端临时排序展示
