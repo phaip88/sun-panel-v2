@@ -145,23 +145,31 @@
 			</div>
 
 				<!-- 书签列表 - 简洁列表样式 -->
-				<div class="flex-1 relative overflow-auto bg-white dark:bg-gray-800">
+				<div class="flex-1 relative overflow-auto bg-white dark:bg-gray-800" @dragover.prevent="handleContainerDragOver">
 					<div v-if="filteredBookmarks.length === 0" class="text-center py-8 text-gray-400 dark:text-gray-500">
 						{{ t('bookmarkManager.noData') }}
 					</div>
 
 					<div v-else class="py-2" @dragover.prevent="handleContainerDragOver">
+						<!-- 全局拖拽指示线 -->
+						<div
+							v-if="dragIndicatorTop !== null"
+							class="absolute left-4 right-4 z-20 flex items-center pointer-events-none transition-all duration-75"
+							:style="{ top: dragIndicatorTop + 'px', transform: 'translateY(-50%)' }"
+						>
+							<div class="w-full h-[2px] bg-blue-500"></div>
+						</div>
 						<template v-for="item in filteredBookmarks" :key="item.id">
 							<!-- 相对定位容器,用于包含绝对定位的插入横线 -->
-							<div class="relative my-1">
-								<!-- 插入位置指示器(在目标项上方) -->
-								<div
-									v-if="dragOverTarget === item.id && dragInsertPosition === 'before'"
-									class="absolute top-0 left-4 right-4 z-10 flex items-center"
-									style="pointer-events: none; transform: translateY(-3px);"
-								>
-									<div class="w-full h-[2px] bg-blue-500"></div>
-								</div>
+							<div 
+								class="relative py-[2px]"
+								:draggable="true"
+								@dragstart="handleDragStart($event, item)"
+								@dragend="handleDragEnd($event); dragOverTarget = null; dragInsertPosition = null; dragIndicatorTop = null"
+								@dragover="handleDragOver($event, item)"
+								@dragleave="handleDragLeave($event)"
+								@drop="handleDrop($event, item); dragOverTarget = null; dragInsertPosition = null; dragIndicatorTop = null"
+							>
 
 								<div
 									:class="[
@@ -175,12 +183,6 @@
 									@contextmenu.prevent="!isMobile ? openContextMenu($event, item) : null"
 									@click="focusedItemId = String(item.id)"
 									@dblclick="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
-									:draggable="true"
-									@dragstart="handleDragStart($event, item)"
-									@dragend="handleDragEnd($event); dragOverTarget = null; dragInsertPosition = null"
-									@dragover="handleDragOver($event, item)"
-									@dragleave="handleDragLeave($event)"
-									@drop="handleDrop($event, item); dragOverTarget = null; dragInsertPosition = null"
 								>
 									<!-- 图标 -->
 									<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
@@ -222,14 +224,7 @@
 									</div>
 								</div>
 
-								<!-- 插入位置指示器(在目标项下方) -->
-								<div
-									v-if="dragOverTarget === item.id && dragInsertPosition === 'after'"
-									class="absolute bottom-0 left-4 right-4 z-10 flex items-center"
-									style="pointer-events: none; transform: translateY(3px);"
-								>
-									<div class="w-full h-[2px] bg-blue-500"></div>
-								</div>
+
 							</div>
 						</template>
 					</div>
@@ -351,10 +346,30 @@ onMounted(() => {
 	document.addEventListener('mousemove', handleMouseMove);
 	document.addEventListener('mouseup', stopResize);
 	document.addEventListener('click', handleGlobalClick);
+	// 全局处理dragover，防止出现禁用光标 (使用捕获阶段，确保优先执行)
+	document.addEventListener('dragover', handleGlobalDragOver, true);
+	document.addEventListener('dragenter', handleGlobalDragOver, true);
 
 	handleResize();
 	window.addEventListener('resize', handleResize);
 });
+
+onUnmounted(() => {
+	document.removeEventListener('mousemove', handleMouseMove);
+	document.removeEventListener('mouseup', stopResize);
+	document.removeEventListener('click', handleGlobalClick);
+	document.removeEventListener('dragover', handleGlobalDragOver, true);
+	document.removeEventListener('dragenter', handleGlobalDragOver, true);
+	window.removeEventListener('resize', handleResize);
+});
+
+// 全局dragover/dragenter处理
+function handleGlobalDragOver(e: DragEvent) {
+	e.preventDefault();
+	if (e.dataTransfer) {
+		e.dataTransfer.dropEffect = 'move';
+	}
+}
 
 // 开始调整大小
 function startResize(e: MouseEvent) {
@@ -965,12 +980,16 @@ function checkIsDescendant(parentId: string | number, childId: string | number):
 function handleDragStart(event: DragEvent, item: any) {
 	draggedItem.value = item;
 	if (event.dataTransfer) {
-		event.dataTransfer.effectAllowed = 'move';
+		event.dataTransfer.effectAllowed = 'all'; // 允许所有效果，防止初始闪烁
+		event.dataTransfer.dropEffect = 'move';
 		event.dataTransfer.setData('text/plain', item.id.toString());
 	}
-	// 添加拖拽时的视觉效果
+	// 延迟添加视觉效果，防止影响拖拽初始化导致的闪烁
 	if (event.currentTarget instanceof HTMLElement) {
-		event.currentTarget.classList.add('opacity-50');
+		const element = event.currentTarget;
+		setTimeout(() => {
+			element.classList.add('opacity-50');
+		}, 0);
 	}
 }
 
@@ -989,11 +1008,13 @@ function handleDragEnd(event: DragEvent) {
 const dragOverTarget = ref<string | number | null>(null);
 // 拖拽插入位置
 const dragInsertPosition = ref<'before' | 'after' | null>(null);
+// 全局拖拽指示线位置 (top值)
+const dragIndicatorTop = ref<number | null>(null);
 
 function handleDragOver(event: DragEvent, item?: any) {
 	// 阻止默认行为并设置允许放置
 	event.preventDefault();
-	event.stopPropagation();
+	// event.stopPropagation(); // 允许冒泡，以便容器也能处理dragover事件，防止禁用光标闪烁
 	
 	// 始终设置为move效果,避免显示禁用光标
 	if (event.dataTransfer) {
@@ -1006,7 +1027,8 @@ function handleDragOver(event: DragEvent, item?: any) {
 		return;
 	}
 
-	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const wrapper = event.currentTarget as HTMLElement;
+	const rect = wrapper.getBoundingClientRect();
 	const mouseY = event.clientY;
 	const itemHeight = rect.height;
 	const mousePosition = mouseY - rect.top;
@@ -1017,19 +1039,28 @@ function handleDragOver(event: DragEvent, item?: any) {
 			// 上1/3 - 插入到文件夹前
 			dragOverTarget.value = item.id;
 			dragInsertPosition.value = 'before';
+			dragIndicatorTop.value = wrapper.offsetTop;
 		} else if (mousePosition > (2 * itemHeight) / 3) {
 			// 下1/3 - 插入到文件夹后
 			dragOverTarget.value = item.id;
 			dragInsertPosition.value = 'after';
+			dragIndicatorTop.value = wrapper.offsetTop + wrapper.offsetHeight;
 		} else {
 			// 中间 - 移动到文件夹内
 			dragOverTarget.value = item.id;
 			dragInsertPosition.value = null;
+			dragIndicatorTop.value = null;
 		}
 	} else {
 		// 普通项逻辑：上半部分插入前，下半部分插入后
 		dragOverTarget.value = item.id;
-		dragInsertPosition.value = mousePosition < itemHeight / 2 ? 'before' : 'after';
+		if (mousePosition < itemHeight / 2) {
+			dragInsertPosition.value = 'before';
+			dragIndicatorTop.value = wrapper.offsetTop;
+		} else {
+			dragInsertPosition.value = 'after';
+			dragIndicatorTop.value = wrapper.offsetTop + wrapper.offsetHeight;
+		}
 	}
 }
 
@@ -1045,11 +1076,12 @@ function handleContainerDragOver(event: DragEvent) {
 function handleDragLeave(event: DragEvent) {
 	// 阻止默认行为
 	event.preventDefault();
-	// 只在真正离开元素时清除状态(避免子元素触发)
-	if (event.currentTarget === event.target || !(event.currentTarget as HTMLElement)?.contains(event.relatedTarget as Node)) {
-		dragOverTarget.value = null;
-		dragInsertPosition.value = null;
-	}
+	// 不在dragleave时清除状态,避免在元素间移动时出现禁用光标
+	// 状态会在dragend时清除
+	// if (event.currentTarget === event.target || !(event.currentTarget as HTMLElement)?.contains(event.relatedTarget as Node)) {
+	// 	dragOverTarget.value = null;
+	// 	dragInsertPosition.value = null;
+	// }
 }
 
 // 定义一个响应式数组用于前端临时排序展示
