@@ -182,7 +182,7 @@
 									]"
 									@contextmenu.prevent="!isMobile ? openContextMenu($event, item) : null"
 									@click="focusedItemId = String(item.id)"
-									@dblclick="item.isFolder ? selectedFolder = String(item.id) : openBookmark(item)"
+									@dblclick="item.isFolder ? openFolder(item.id) : openBookmark(item)"
 								>
 									<!-- 图标 -->
 									<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
@@ -640,6 +640,13 @@ function handleSearch() {
 		selectedFolder.value = ''
 		selectedBookmarkId.value = '' // 同时清空选中的书签
 	}
+}
+
+// 打开文件夹（清空搜索）
+function openFolder(folderId: string | number) {
+	selectedFolder.value = String(folderId)
+	searchQuery.value = '' // 清空搜索框
+	selectedKeysRef.value = [String(folderId)] // 同步左侧树选中状态
 }
 
 
