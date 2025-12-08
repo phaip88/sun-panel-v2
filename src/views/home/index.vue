@@ -1,5 +1,4 @@
 <script setup lang="ts">
-// 删除未使用的导入
 import { VueDraggable } from 'vue-draggable-plus'
 import { NBackTop, NButton, NButtonGroup, NDropdown, NModal, NSkeleton, NSpin, useDialog, useMessage } from 'naive-ui'
 import { nextTick, onMounted, onActivated, ref, h } from 'vue'
@@ -7,7 +6,6 @@ import { AppIcon, AppStarter, EditItem } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
-import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 
 import { setTitle, updateLocalUserInfo } from '@/utils/cmn'
 import { useAuthStore, usePanelState } from '@/store'
@@ -865,16 +863,18 @@ const displayText = nodeData.label || nodeData.title || '未命名';
 
 try {
 return h('div', { class: 'flex items-center' }, [
-isFolder ? h('img', {
-        src: FolderOpenIcon,
+isFolder ? h('svg', {
+        xmlns: 'http://www.w3.org/2000/svg',
         class: 'w-4 h-4 mr-2',
-        onError: (e: Event) => {
-          console.error('文件夹图标加载失败');
-          const target = e.target as HTMLImageElement;
-          target.onerror = null;
-          target.style.display = 'none';
-        }
-      }) : (() => {
+        width: '24',
+        height: '24',
+        fill: '#4285F4',
+        viewBox: '0 0 24 24'
+      }, [
+        h('path', {
+          d: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z'
+        })
+      ]) : (() => {
         let iconSrc = option.bookmark?.iconJson || '';
         if (iconSrc && !iconSrc.startsWith('data:')) {
           iconSrc = 'data:image/png;base64,' + iconSrc;

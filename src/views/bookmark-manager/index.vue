@@ -187,8 +187,8 @@
 									<!-- 图标 -->
 									<div class="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-3">
 	<span v-if="item.isFolder" class="text-gray-400 dark:text-gray-500 group-hover:text-[#4285F4] dark:group-hover:text-[#4285F4] transition-colors">
-		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+			<path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
 		</svg>
 	</span>
 										<img v-else-if="item.iconJson"
@@ -277,7 +277,6 @@
 <script setup lang="ts">
 
 import { ref, computed, onMounted, onUnmounted, h, watch, nextTick } from 'vue'
-import FolderOpenIcon from '@/assets/svg-icons/icon_folder_open.svg'
 // 不再直接导入SVG文件，使用内联方式
 import { NTree, NInput, useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
@@ -817,12 +816,23 @@ const renderTreeLabel = ({ option }: { option: any }) => {
 
   // 如果是文件夹节点，添加SVG图标
   if (isFolder) {
+    // 检查当前节点是否被选中
+    const isSelected = selectedKeysRef.value.includes(option.key);
+    const iconColor = isSelected ? '#4285F4' : '#9CA3AF'; // 选中时蓝色，未选中时灰色
+    
     content.push(
-      h('img', {
-        src: FolderOpenIcon,
+      h('svg', {
+        xmlns: 'http://www.w3.org/2000/svg',
         class: 'w-5 h-5 inline-block mr-1',
-        alt: 'folder icon'
-      })
+        width: '24',
+        height: '24',
+        fill: iconColor,
+        viewBox: '0 0 24 24'
+      }, [
+        h('path', {
+          d: 'M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z'
+        })
+      ])
     );
 
     // 显示文件夹标题
