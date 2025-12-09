@@ -17,7 +17,7 @@ const isLoading = ref(false)
 async function loadSettings() {
   isLoading.value = true
   try {
-    const response = await getSystemSettings<Common.Response<Record<string, string>>>(['pingUrl'])
+    const response = await getSystemSettings<Record<string, string>>(['pingUrl'])
     if (response.code === 0 && response.data) {
       // 如果有保存的值,使用保存的值
       if (response.data.pingUrl) {
@@ -54,7 +54,7 @@ async function testConnection() {
 
     // 使用 no-cors 模式避免 CORS 错误
     // 这种模式下无法读取响应内容,但可以判断请求是否成功发出
-    const response = await fetch(url, {
+    await fetch(url, {
       method: 'GET',
       mode: 'no-cors', // 不触发CORS检查
       signal: controller.signal,
