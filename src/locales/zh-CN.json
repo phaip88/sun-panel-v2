@@ -38,7 +38,7 @@
   },
   "bookmarkManager": {
     "management": "书签管理",
-		"bookmarkList": "书签列表",
+    "bookmarkList": "书签列表",
     "back": "返回",
     "create": "新建",
     "addBookmark": "添加新书签",
@@ -138,6 +138,18 @@
       "tip": "导入图标配置数据不会清空现有图标数据",
       "transmuteStandard": "导入首页配置书签",
       "warnConfigFileLow": "配置文件版本过低，但是兼容"
+    },
+    "settings": {
+      "appName": "设置",
+      "comingSoon": "敬请期待...",
+      "networkDetection": "自动判断内外网",
+      "pingUrlHint": "下方填写:当前内网打开网址，例如http://192.168.1.1:3000/ping",
+      "pingUrlPlaceholder": "http://192.168.1.1:3000/ping",
+      "testConnection": "测试连接",
+      "connectionSuccess": "连接正常",
+      "connectionFailed": "连接失败",
+      "testing": "测试中...",
+      "pleaseEnterUrl": "请输入URL地址"
     },
     "itemGroupManage": {
       "appName": "分组管理",

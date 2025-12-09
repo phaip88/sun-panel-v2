@@ -38,7 +38,7 @@
   },
   "bookmarkManager": {
     "management": "Bookmark Management",
-		"bookmarkList": "Bookmark list",
+    "bookmarkList": "Bookmark list",
     "back": "Back",
     "create": "Create",
     "addBookmark": "Add New Bookmark",
@@ -138,6 +138,18 @@
       "tip": "Importing icon configuration data will not clear existing icon data",
       "transmuteStandard": "Transmute Standard",
       "warnConfigFileLow": "The configuration file version is too low but compatible"
+    },
+    "settings": {
+      "appName": "Settings",
+      "comingSoon": "Coming soon...",
+      "networkDetection": "Auto Detect LAN/WAN",
+      "pingUrlHint": "Fill in LAN IP:Port/ping, e.g. http://192.168.1.1:3000/ping",
+      "pingUrlPlaceholder": "http://192.168.1.1:3000/ping",
+      "testConnection": "Test Connection",
+      "connectionSuccess": "Connection OK",
+      "connectionFailed": "Connection Failed",
+      "testing": "Testing...",
+      "pleaseEnterUrl": "Please enter URL"
     },
     "itemGroupManage": {
       "appName": "Group Management",

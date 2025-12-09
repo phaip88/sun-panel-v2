@@ -54,6 +54,12 @@ const apps = ref<App[]>([
     icon: 'icon-park-outline-import-and-export',
   },
   {
+    name: t('apps.settings.appName'),
+    componentName: 'Settings',
+    icon: 'set',
+    auth: 1, // 只有管理员可见
+  },
+  {
     name: t('apps.about.appName'),
     componentName: 'About',
     icon: 'lucide-info',
@@ -61,6 +67,18 @@ const apps = ref<App[]>([
 ])
 
 const authStore = useAuthStore()
+
+// 过滤菜单项 - 只显示有权限的菜单
+const filteredApps = computed(() => {
+  return apps.value.filter(app => {
+    // 如果没有auth属性或auth为0，所有人都可见
+    if (!app.auth || app.auth === 0) {
+      return true
+    }
+    // 如果auth为1，只有管理员可见
+    return authStore.userInfo?.role === 1
+  })
+})
 
 const show = computed({
   get: () => props.visible,
@@ -98,9 +116,9 @@ onMounted(() => {
     icon: 'lucide-users',
     auth: 1,
   }
-  // 初始化
+  // 初始化 - 将账号管理插入到Settings之前(索引5)
   if (authStore.userInfo?.role === 1)
-    apps.value.push(adminApp)
+    apps.value.splice(5, 0, adminApp)
 
   window.addEventListener('resize', handleResize)
   handleResize()
@@ -149,7 +167,7 @@ onUnmounted(() => {
                   }"
                 >
                   <div
-                    v-for=" (item, index) in apps"
+                    v-for=" (item, index) in filteredApps"
                     :key="index"
                     :style="{ color: componentName === item.componentName ? 'var(--n-color-target)' : '' }"
                     @click="handleClickApp(item)"
