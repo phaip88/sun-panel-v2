@@ -1076,23 +1076,28 @@ function handleChangeNetwork(targetMode: PanelStateNetworkModeEnum) {
 <template>
 	<div>
 		<!-- 左上角抽屉按钮 - 大众常用样式 -->
-		<div
-			@click="drawerVisible = !drawerVisible"
-			class="fixed top-4 left-4 z-50 flex items-center  justify-center w-10 h-10 rounded-full bg-transparent shadow-none text-white text-gray-800 cursor-pointer transition-all hover:bg-gray-100"
-		>
-			<svg viewBox="0 0 24 24" class="w-6 h-6" v-if="drawerVisible">
-				<path
-					d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12
+		<div class="fixed top-4 left-4 z-50">
+			<NButton
+				circle
+				color="#2a2a2a6b"
+				class="w-10 h-10 !p-0 shadow-[0_0_10px_2px_rgba(0,0,0,0.2)] no-focus-outline"
+				tabindex="-1"
+				@click="drawerVisible = !drawerVisible"
+			>
+				<svg viewBox="0 0 24 24" class="w-6 h-6 text-white" v-if="drawerVisible">
+					<path
+						d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12
          5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-					fill="currentColor"
-				/>
-			</svg>
-			<svg viewBox="0 0 24 24" class="w-6 h-6" v-else>
-				<path
-					d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
-					fill="currentColor"
-				/>
-			</svg>
+						fill="currentColor"
+					/>
+				</svg>
+				<svg viewBox="0 0 24 24" class="w-6 h-6 text-white" v-else>
+					<path
+						d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
+						fill="currentColor"
+					/>
+				</svg>
+			</NButton>
 		</div>
 
 		<!-- 左侧抽屉 -->
@@ -1466,6 +1471,10 @@ html {
 /* 优化条状按钮阴影 */
 .fixed {
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+:deep(.no-focus-outline:focus) {
+  box-shadow: none !important;
 }
 </style>
 
