@@ -18,6 +18,7 @@ func InitRouters(addr string) error {
 
 	// 接口
 	system.Init(routerGroup)
+	system.InitPingRouter(rootRouter)
 	panel.Init(routerGroup)
 	openness.Init(routerGroup)
 

@@ -101,6 +101,8 @@ const isMobile = computed(() => width.value < 768)
 import { getList as getBookmarksList } from '@/api/panel/bookmark'
 import { getList as getGroupList } from '@/api/panel/itemIconGroup'
 import { ss } from '@/utils/storage/local'
+import { getSystemSettings } from '@/api/system/systemSetting'
+
 
 // 书签数据树
 const treeData = ref<any[]>([])
@@ -109,6 +111,33 @@ const BOOKMARKS_CACHE_KEY = 'bookmarksTreeCache'
 const GROUP_LIST_CACHE_KEY = 'groupListCache'
 // 图标列表缓存键前缀
 const ITEM_ICON_LIST_CACHE_KEY_PREFIX = 'itemIconList_'
+
+const systemPingUrl = ref('')
+
+// 检测内网连接
+async function checkIntranetConnection(): Promise<boolean> {
+  if (!systemPingUrl.value) return false
+
+  let url = systemPingUrl.value.trim()
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'http://' + url
+  }
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 150)
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+    return response.status === 200
+  } catch (e) {
+    return false
+  }
+}
+
 
 // 获取书签数据并转换为前端需要的格式
 async function loadBookmarkTree(forceRefresh = false) {
@@ -433,19 +462,74 @@ function openPage(openMethod: number, url: string, title?: string) {
   }
 }
 
-function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
+async function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
   if (items.value[itemGroupIndex] && items.value[itemGroupIndex].sortStatus) {
     handleEditItem(item)
     return
   }
 
-  let jumpUrl = ''
+  // 辅助函数：标准化URL（自动添加http://）
+  const normalizeUrl = (url: string | undefined | null) => {
+    if (!url) return ''
+    let trimmed = url.trim()
+    if (!trimmed) return ''
+    
+    // 如果是 javascript: 等特殊协议或已经是 http/https 开头，或者是相对路径，则不处理
+    if (/^[a-z]+:/i.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../')) {
+      return trimmed
+    }
+    
+    // 默认为 http
+    return 'http://' + trimmed
+  }
 
-  if (item)
-    jumpUrl = (panelState.networkMode === PanelStateNetworkModeEnum.lan ? item.lanUrl : item.url) as string
-  if (item.lanUrl === '')
-    jumpUrl = item.url
+  // 辅助函数：检查URL是否有效
+  const isValidUrl = (url: string | undefined | null) => {
+    if (!url) return false
+    const trimmed = url.trim()
+    return trimmed !== '' && trimmed !== 'null' && trimmed !== 'undefined'
+  }
 
+  // 预处理 URL
+  const publicUrl = normalizeUrl(item.url)
+  const lanUrl = normalizeUrl(item.lanUrl)
+
+  // 默认使用公网地址
+  let jumpUrl = publicUrl
+  
+  // 检查是否需要进行内网探测
+  // 条件：有内网地址 AND 内网地址有效 AND 系统配置了PingUrl
+  // 注意：这里我们检查原始的 item.lanUrl 是否有效，但使用标准化的 lanUrl 进行跳转
+  const shouldCheckIntranet = isValidUrl(item.lanUrl) && systemPingUrl.value
+
+  if (shouldCheckIntranet) {
+    // 情况1：新窗口打开 (openMethod === 2)
+    // 需要先打开空白窗口避开拦截，然后异步探测
+    if (item.openMethod === 2) {
+      const newWindow = window.open('about:blank', '_blank')
+      if (newWindow) {
+        // 探测
+        const isIntranet = await checkIntranetConnection()
+        
+        // 确定最终URL
+        let finalUrl = publicUrl
+        if (isIntranet && isValidUrl(item.lanUrl)) {
+             finalUrl = lanUrl
+        }
+        
+        newWindow.location.href = finalUrl
+        return // 结束，不执行后面的 openPage
+      }
+    } 
+    
+    // 情况2：当前窗口或弹窗 (openMethod === 1, 3等)
+    const isIntranet = await checkIntranetConnection()
+    if (isIntranet && isValidUrl(item.lanUrl)) {
+      jumpUrl = lanUrl
+    }
+  }
+
+  // 执行打开页面 (如果是新窗口且上面处理过了，这里就不会执行)
   openPage(item.openMethod, jumpUrl, item.title)
 }
 
@@ -771,6 +855,16 @@ onMounted(async () => {
   // 更新用户信息
   updateLocalUserInfo()
   getList()
+
+  // 加载Ping Url设置
+  try {
+    const res = await getSystemSettings<{pingUrl: string}>(['pingUrl'])
+    if (res.code === 0 && res.data && res.data.pingUrl) {
+      systemPingUrl.value = res.data.pingUrl
+    }
+  } catch (error) {
+    console.error('获取Ping Url设置失败', error)
+  }
 
   // 更新同步云端配置
   panelState.updatePanelConfigByCloud()

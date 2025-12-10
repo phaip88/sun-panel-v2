@@ -50,21 +50,23 @@ async function testConnection() {
   try {
     // 创建AbortController用于超时控制
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 100)
+    const timeoutId = setTimeout(() => controller.abort(), 150)
 
     // 使用 no-cors 模式避免 CORS 错误
     // 这种模式下无法读取响应内容,但可以判断请求是否成功发出
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'GET',
-      mode: 'no-cors', // 不触发CORS检查
+      // mode: 'no-cors', // 移除 no-cors 以获取状态码
       signal: controller.signal,
     })
 
     clearTimeout(timeoutId)
 
-    // no-cors 模式下,只要请求完成就认为连接成功
-    // 因为如果地址不可达,会直接抛出错误
-    testStatus.value = 'success'
+    if (response.status === 200) {
+      testStatus.value = 'success'
+    } else {
+      testStatus.value = 'failed'
+    }
   } catch (error: any) {
     // 超时或其他错误(包括地址不可达)
     testStatus.value = 'failed'
