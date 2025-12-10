@@ -2,7 +2,7 @@
 import { VueDraggable } from 'vue-draggable-plus'
 import { NBackTop, NButton, NButtonGroup, NDropdown, NModal, NSkeleton, NSpin, useDialog, useMessage } from 'naive-ui'
 import { nextTick, onMounted, onActivated, ref, h } from 'vue'
-import { AppIcon, AppStarter, EditItem } from './components'
+import { AppIcon, AppStarter, EditItem, NotePad } from './components'
 import { Clock, SearchBox, SystemMonitor } from '@/components/deskModule'
 import { SvgIcon } from '@/components/common'
 import { deletes, getListByGroupId, saveSort } from '@/api/panel/itemIcon'
@@ -92,6 +92,7 @@ const filterItems = ref<ItemGroup[]>([])
 
 
 const drawerVisible = ref(false)
+const notepadVisible = ref(false)
 const { width } = useWindowSize()
 
 // 移动端判断
@@ -146,30 +147,21 @@ async function loadBookmarkTree(forceRefresh = false) {
     if (!forceRefresh) {
       const cachedData = ss.get(BOOKMARKS_CACHE_KEY)
       if (cachedData) {
-        console.log('使用缓存的书签数据')
         // 处理缓存的原始fullData格式数据
         let treeDataResult = [];
 
         // 检查是否已经是树形结构（直接包含children字段）
         if (Array.isArray(cachedData) && cachedData.length > 0 && 'children' in cachedData[0]) {
-          // 已经是树形结构，转换为前端需要的格式
-          console.log('处理已有的树形结构数据')
           treeDataResult = convertServerTreeToFrontendTree(cachedData)
         } else if (cachedData.list && Array.isArray(cachedData.list)) {
           // 后端返回的是带list字段的结构
           const serverBookmarks = cachedData.list
           if (serverBookmarks.length > 0 && 'children' in serverBookmarks[0]) {
-            // list字段中已经是树形结构
-            console.log('处理list字段中的树形结构数据')
             treeDataResult = convertServerTreeToFrontendTree(serverBookmarks)
           } else {
-            // 构建树形结构
-            console.log('从列表构建树形结构')
             treeDataResult = buildBookmarkTree(serverBookmarks)
           }
         } else {
-          // 作为列表数据构建树形结构
-          console.log('从基础数据构建树形结构')
           treeDataResult = buildBookmarkTree(Array.isArray(cachedData) ? cachedData : [])
         }
 
@@ -179,11 +171,7 @@ async function loadBookmarkTree(forceRefresh = false) {
     } else {
       // 强制刷新时清除缓存
       ss.remove(BOOKMARKS_CACHE_KEY)
-      console.log('强制刷新，清除缓存')
     }
-
-    // 请求接口获取数据
-    console.log('从服务器获取书签数据')
     const response = await getBookmarksList()
     if (response.code === 0) {
       // 检查数据结构
@@ -192,32 +180,21 @@ async function loadBookmarkTree(forceRefresh = false) {
 
       // 检查是否已经是树形结构（直接包含children字段）
       if (Array.isArray(data) && data.length > 0 && 'children' in data[0]) {
-        // 已经是树形结构，转换为前端需要的格式
-        console.log('处理已有的树形结构数据')
         treeDataResult = convertServerTreeToFrontendTree(data)
       } else if (data.list && Array.isArray(data.list)) {
         // 后端返回的是带list字段的结构
         const serverBookmarks = data.list
         if (serverBookmarks.length > 0 && 'children' in serverBookmarks[0]) {
-          // list字段中已经是树形结构
-          console.log('处理list字段中的树形结构数据')
           treeDataResult = convertServerTreeToFrontendTree(serverBookmarks)
         } else {
-          // 构建树形结构
-          console.log('从列表构建树形结构')
           treeDataResult = buildBookmarkTree(serverBookmarks)
         }
       } else {
-        // 作为列表数据构建树形结构
-        console.log('从基础数据构建树形结构')
         treeDataResult = buildBookmarkTree(Array.isArray(data) ? data : [])
       }
 
       // 更新treeData
       treeData.value = treeDataResult
-      console.log('书签数据加载完成，共', treeDataResult.length, '个根节点')
-
-      // 将数据保存到缓存中 - 存储原始fullData格式数据
       ss.set(BOOKMARKS_CACHE_KEY, data)
     }
   } catch (error) {
@@ -225,30 +202,21 @@ async function loadBookmarkTree(forceRefresh = false) {
     // 出错时尝试使用缓存
     const cachedData = ss.get(BOOKMARKS_CACHE_KEY)
     if (cachedData) {
-      console.log('加载失败，使用缓存数据作为备份')
       // 处理缓存的原始fullData格式数据
       let treeDataResult = [];
 
       // 检查是否已经是树形结构（直接包含children字段）
       if (Array.isArray(cachedData) && cachedData.length > 0 && 'children' in cachedData[0]) {
-        // 已经是树形结构，转换为前端需要的格式
-        console.log('处理已有的树形结构数据')
         treeDataResult = convertServerTreeToFrontendTree(cachedData)
       } else if (cachedData.list && Array.isArray(cachedData.list)) {
         // 后端返回的是带list字段的结构
         const serverBookmarks = cachedData.list
         if (serverBookmarks.length > 0 && 'children' in serverBookmarks[0]) {
-          // list字段中已经是树形结构
-          console.log('处理list字段中的树形结构数据')
           treeDataResult = convertServerTreeToFrontendTree(serverBookmarks)
         } else {
-          // 构建树形结构
-          console.log('从列表构建树形结构')
           treeDataResult = buildBookmarkTree(serverBookmarks)
         }
       } else {
-        // 作为列表数据构建树形结构
-        console.log('从基础数据构建树形结构')
         treeDataResult = buildBookmarkTree(Array.isArray(cachedData) ? cachedData : [])
       }
       treeData.value = treeDataResult
@@ -473,12 +441,12 @@ async function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
     if (!url) return ''
     let trimmed = url.trim()
     if (!trimmed) return ''
-    
+
     // 如果是 javascript: 等特殊协议或已经是 http/https 开头，或者是相对路径，则不处理
     if (/^[a-z]+:/i.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('./') || trimmed.startsWith('../')) {
       return trimmed
     }
-    
+
     // 默认为 http
     return 'http://' + trimmed
   }
@@ -496,7 +464,7 @@ async function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
 
   // 默认使用公网地址
   let jumpUrl = publicUrl
-  
+
   // 检查是否需要进行内网探测
   // 条件：有内网地址 AND 内网地址有效 AND 系统配置了PingUrl
   // 注意：这里我们检查原始的 item.lanUrl 是否有效，但使用标准化的 lanUrl 进行跳转
@@ -510,18 +478,18 @@ async function handleItemClick(itemGroupIndex: number, item: Panel.ItemInfo) {
       if (newWindow) {
         // 探测
         const isIntranet = await checkIntranetConnection()
-        
+
         // 确定最终URL
         let finalUrl = publicUrl
         if (isIntranet && isValidUrl(item.lanUrl)) {
              finalUrl = lanUrl
         }
-        
+
         newWindow.location.href = finalUrl
         return // 结束，不执行后面的 openPage
       }
-    } 
-    
+    }
+
     // 情况2：当前窗口或弹窗 (openMethod === 1, 3等)
     const isIntranet = await checkIntranetConnection()
     if (isIntranet && isValidUrl(item.lanUrl)) {
@@ -880,7 +848,6 @@ onMounted(async () => {
 
   // 加载书签数据，使用forceRefresh=true确保获取最新排序
   await loadBookmarkTree(false)
-  console.log('组件挂载完成，书签树数据已加载')
 })
 
 onActivated(() => {
@@ -1080,7 +1047,7 @@ function handleChangeNetwork(targetMode: PanelStateNetworkModeEnum) {
 			<NButton
 				circle
 				color="#2a2a2a6b"
-				class="w-10 h-10 !p-0 shadow-[0_0_10px_2px_rgba(0,0,0,0.2)] no-focus-outline"
+				class="w-10 h-10 !p-0 shadow-[0_0_10px_2px_rgba(0,0,0,0.2)] no-focus-outline no-tap-highlight"
 				tabindex="-1"
 				@click="drawerVisible = !drawerVisible"
 			>
@@ -1098,6 +1065,11 @@ function handleChangeNetwork(targetMode: PanelStateNetworkModeEnum) {
 					/>
 				</svg>
 			</NButton>
+		</div>
+
+		<!-- 右上角便签按钮 -->
+		<div class="fixed top-4 right-4 z-50 cursor-pointer transition-opacity hover:opacity-80 no-tap-highlight" @click="notepadVisible = !notepadVisible">
+			<SvgIcon icon="note" class="text-white text-[32px] drop-shadow-md" />
 		</div>
 
 		<!-- 左侧抽屉 -->
@@ -1348,6 +1320,7 @@ function handleChangeNetwork(targetMode: PanelStateNetworkModeEnum) {
       </NButtonGroup>
 
       <AppStarter v-model:visible="settingModalShow" />
+      <NotePad v-model:visible="notepadVisible" />
       <!-- <Setting v-model:visible="settingModalShow" /> -->
     </div>
 
@@ -1469,12 +1442,16 @@ html {
 }
 
 /* 优化条状按钮阴影 */
-.fixed {
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
+/* 优化条状按钮阴影 - 已移除，避免污染全局 .fixed 类 */
+
 
 :deep(.no-focus-outline:focus) {
   box-shadow: none !important;
+}
+
+.no-tap-highlight {
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
 }
 </style>
 

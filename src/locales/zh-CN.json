@@ -180,6 +180,14 @@
       }
     }
   },
+  "notepad": {
+    "title": "便签",
+    "placeholder": "写点什么，或者拖拽文件到这里...",
+    "clickToDownload": "点击下载",
+    "imageInvalid": "[图片已失效]",
+    "saveFailed": "文件保存失败",
+    "fileNotFound": "文件未找到或已删除"
+  },
   "common": {
     "refreshSuccess": "刷新成功",
     "refreshFailed": "刷新失败",

@@ -39,7 +39,7 @@ function http<T = any>(
       if (loginMessageShow === false) {
         loginMessageShow = true
         message.warning(t('api.loginExpires'), {
-        // message.warning('登录过期', {
+          // message.warning('登录过期', {
           onLeave() {
             loginMessageShow = false
           },
@@ -95,7 +95,7 @@ function http<T = any>(
   headers.token = authStore.token
   headers.lang = appStore.language
   return method === 'GET'
-    ? request.get(url, { params, signal, onDownloadProgress }).then(successHandler, failHandler)
+    ? request.get(url, { params, headers, signal, onDownloadProgress }).then(successHandler, failHandler)
     : request.post(url, params, { headers, signal, onDownloadProgress }).then(successHandler, failHandler)
 }
 

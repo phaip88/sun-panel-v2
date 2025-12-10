@@ -180,6 +180,14 @@
       }
     }
   },
+  "notepad": {
+    "title": "note",
+    "placeholder": "Write something, or drag files here...",
+    "clickToDownload": "Click to download",
+    "imageInvalid": "[Image invalid]",
+    "saveFailed": "Save failed",
+    "fileNotFound": "File not found or deleted"
+  },
   "common": {
     "action": "Action",
     "add": "Add",
