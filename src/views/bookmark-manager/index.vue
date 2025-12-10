@@ -252,8 +252,18 @@
 				:placeholder="t('bookmarkManager.enterUrl')"
 			/>
 				</div>
-				<!-- 父文件夹选择框已隐藏，现在根据当前路径自动确定父文件夹 -->
-				<input v-model="currentEditBookmark.folderId" type="hidden" />
+				<div class="mb-4">
+					<label class="block mb-2 text-gray-800 dark:text-white">{{ t('bookmarkManager.folder') }}</label>
+					<n-tree-select
+						v-model:value="currentEditBookmark.folderId"
+						:options="folderTreeOptions"
+						key-field="key"
+						label-field="label"
+						:placeholder="t('bookmarkManager.folder')"
+						default-expand-all
+						class="w-full"
+					/>
+				</div>
 				<div class="flex justify-end gap-2">
 					<button @click="closeEditDialog" class="px-4 py-2 border border-gray-300 rounded-md text-gray-800 dark:text-white">{{ t('bookmarkManager.cancel') }}</button>
 					<button @click="saveBookmarkChanges" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-md">{{ t('bookmarkManager.confirm') }}</button>
@@ -278,7 +288,7 @@
 
 import { ref, computed, onMounted, onUnmounted, h, watch, nextTick } from 'vue'
 // 不再直接导入SVG文件，使用内联方式
-import { NTree, NInput, useMessage } from 'naive-ui'
+import { NTree, NInput, useMessage, NTreeSelect } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import { getList as getBookmarksList, add as addBookmark, update, deletes, addMultiple as addMultipleBookmarks } from '@/api/panel/bookmark'
 import { t } from '@/locales'
@@ -684,6 +694,44 @@ const allFolders = computed(() => {
     const uniqueFolders = Array.from(new Map(folders.map(folder => [folder.value, folder])).values());
 
     return uniqueFolders;
+});
+
+// 用于TreeSelect的文件夹树选项
+const folderTreeOptions = computed(() => {
+  const processNodes = (nodes: any[]): any[] => {
+    // 过滤并转换节点
+    return nodes
+      .map(node => {
+        // 判断是否为文件夹
+        const isFolder = node.isFolder || (!node.isLeaf && !node.bookmark?.url);
+        
+        // 如果不是文件夹，跳过
+        if (!isFolder) return null;
+
+        const option: any = {
+          key: String(node.key),
+          label: node.label || node.title || 'Unknown',
+        };
+
+        if (node.children && node.children.length > 0) {
+          const children = processNodes(node.children);
+          if (children.length > 0) {
+            option.children = children;
+          }
+        }
+        return option;
+      })
+      .filter(node => node !== null);
+  };
+  
+  // 基础根目录选项
+  const rootOption = {
+    key: '0',
+    label: t('bookmarkManager.rootDirectory'),
+  };
+
+  const treeData = fullData.value.length > 0 ? fullData.value : bookmarkTree.value;
+  return [rootOption, ...processNodes(treeData)];
 });
 
 
@@ -1610,11 +1658,14 @@ function handleDeleteBookmark() {
 // 创建新书签
 function createNewBookmark() {
 	// 重置表单
+	// 设置默认父文件夹为当前选中的文件夹
+	const defaultFolderId = (selectedFolder.value && selectedFolder.value !== '0') ? selectedFolder.value : '0';
+
 	currentEditBookmark.value = {
 		id: 0,
 		title: '',
 		url: '',
-		folderId: '0',
+		folderId: defaultFolderId,
 	};
 	// 设置为创建模式
 	isCreateMode.value = true;
@@ -1663,10 +1714,16 @@ async function saveBookmarkChanges() {
 		if (isCreateMode.value) {
 			// 创建新模式
 			// 根据当前路径获取parentUrl，如果是根目录则为'0'
+			// 根据当前选择的folderId获取parentUrl
 				let parentUrl = '0';
-				// 获取当前路径的最后一个文件夹名称作为parentUrl
-				if (currentPath.value.length > 1) {
-					parentUrl = currentPath.value[currentPath.value.length - 1].name;
+				const selectedFolderId = currentEditBookmark.value.folderId ? currentEditBookmark.value.folderId.toString() : '0';
+				
+				if (selectedFolderId !== '0') {
+					// 尝试从 allFolders 中查找
+					const selectedFolder = allFolders.value.find(folder => folder.value === selectedFolderId);
+					if (selectedFolder) {
+						parentUrl = selectedFolder.label;
+					}
 				}
 			const createData = {
 				title: currentEditBookmark.value.title,
