@@ -18,26 +18,48 @@ import (
 
 type Notepad struct{}
 
+// Get 获取单个便签
 func (a *Notepad) Get(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
+	var req struct {
+		Id uint `form:"id"`
+	}
+	c.ShouldBindQuery(&req)
+
 	var notepad models.Notepad
-	// 查询当前用户的便签
-	if err := global.Db.Where("user_id = ?", userInfo.ID).First(&notepad).Error; err != nil {
-		// 如果未找到，返回默认空内容或者错误码，这里返回空字符串的成功响应
-		// 或者创建一条新的空记录？前端逻辑是 Get 失败则显示空。
-		// 为了简化，这里如果找不到就返回空内容
-		apiReturn.SuccessData(c, gin.H{"content": ""})
+	db := global.Db.Where("user_id = ?", userInfo.ID)
+
+	if req.Id > 0 {
+		db = db.Where("id = ?", req.Id)
+	} else {
+		db = db.Order("updated_at desc") // 默认最近的
+	}
+
+	if err := db.First(&notepad).Error; err != nil {
+		// 没找到，返回nil，前端视为新建
+		apiReturn.SuccessData(c, nil)
 		return
 	}
-	apiReturn.SuccessData(c, gin.H{
-		"content":   notepad.Content,
-		"updatedAt": notepad.UpdatedAt,
-	})
+	apiReturn.SuccessData(c, notepad)
 }
 
+// GetList 获取便签列表
+func (a *Notepad) GetList(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	var list []models.Notepad
+	if err := global.Db.Where("user_id = ?", userInfo.ID).Order("updated_at desc").Find(&list).Error; err != nil {
+		apiReturn.Error(c, "Get List Failed")
+		return
+	}
+	apiReturn.SuccessData(c, list)
+}
+
+// Save 保存（新增或更新）
 func (a *Notepad) Save(c *gin.Context) {
 	userInfo, _ := base.GetCurrentUserInfo(c)
 	type Req struct {
+		Id      uint   `json:"id"`
+		Title   string `json:"title"`
 		Content string `json:"content"`
 	}
 	var req Req
@@ -47,27 +69,50 @@ func (a *Notepad) Save(c *gin.Context) {
 	}
 
 	var notepad models.Notepad
-	err := global.Db.Where("user_id = ?", userInfo.ID).First(&notepad).Error
-
-	if err != nil {
-		// 不存在，创建
-		notepad = models.Notepad{
-			UserID:  userInfo.ID,
-			Content: req.Content,
-		}
-		if err := global.Db.Create(&notepad).Error; err != nil {
-			apiReturn.Error(c, "Save Failed")
+	if req.Id > 0 {
+		// Update
+		if err := global.Db.Where("user_id = ? AND id = ?", userInfo.ID, req.Id).First(&notepad).Error; err != nil {
+			apiReturn.Error(c, "Not Found")
 			return
 		}
-	} else {
-		// 存在，更新
+		notepad.Title = req.Title
 		notepad.Content = req.Content
 		if err := global.Db.Save(&notepad).Error; err != nil {
 			apiReturn.Error(c, "Update Failed")
 			return
 		}
+	} else {
+		// Create
+		notepad = models.Notepad{
+			UserID:  userInfo.ID,
+			Title:   req.Title,
+			Content: req.Content,
+		}
+		if err := global.Db.Create(&notepad).Error; err != nil {
+			apiReturn.Error(c, "Create Failed")
+			return
+		}
 	}
 
+	apiReturn.SuccessData(c, notepad)
+}
+
+// Delete 删除便签
+func (a *Notepad) Delete(c *gin.Context) {
+	userInfo, _ := base.GetCurrentUserInfo(c)
+	type Req struct {
+		Id uint `json:"id"`
+	}
+	var req Req
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		apiReturn.ErrorParamFomat(c, err.Error())
+		return
+	}
+
+	if err := global.Db.Where("user_id = ? AND id = ?", userInfo.ID, req.Id).Delete(&models.Notepad{}).Error; err != nil {
+		apiReturn.Error(c, "Delete Failed")
+		return
+	}
 	apiReturn.Success(c)
 }
 
