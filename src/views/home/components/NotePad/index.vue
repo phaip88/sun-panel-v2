@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import { SvgIcon, SvgIconOnline } from '@/components/common'
 import { useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { useDraggable, useDebounceFn } from '@vueuse/core'
+import { useDraggable, useDebounceFn, useStorage } from '@vueuse/core'
 import { 
     getNotepadList, 
     saveNotepadContent, 
@@ -12,7 +12,7 @@ import {
     type NotepadInfo 
 } from '@/api/panel/notepad'
 
-defineProps<{
+const props = defineProps<{
   visible: boolean
 }>()
 
@@ -28,15 +28,23 @@ const notepadRef = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-// 状态
-const currentNote = ref<Partial<NotepadInfo>>({ id: 0, title: '', content: '' })
-const noteList = ref<NotepadInfo[]>([])
+// 状态 - 使用 useStorage 持久化
+const currentNote = useStorage<Partial<NotepadInfo>>('sun-panel-notepad-current', { id: 0, title: '', content: '' })
+const noteList = useStorage<NotepadInfo[]>('sun-panel-notepad-list', [])
 const showList = ref(false)
 
 // 窗口初始位置
 const { x, y } = useDraggable(notepadRef, {
   initialValue: { x: window.innerWidth - 370, y: 80 },
   handle: headerRef
+})
+
+// 初始化
+onMounted(async () => {
+    // 预加载：只有当本地缓存为空时才请求
+    if (noteList.value.length === 0) {
+        await loadList()
+    }
 })
 
 // 加载列表
@@ -81,8 +89,8 @@ const handleInput = () => {
     saveContent()
 }
 
-// 保存内容（防抖）
-const saveContent = useDebounceFn(async () => {
+// 核心保存逻辑
+const handleSave = async () => {
     if (editorRef.value) {
         try {
             const content = editorRef.value.innerHTML
@@ -108,7 +116,10 @@ const saveContent = useDebounceFn(async () => {
             console.error('Save notepad error:', error)
         }
     }
-}, 1000)
+}
+
+// 保存内容（防抖）
+const saveContent = useDebounceFn(handleSave, 1000)
 
 // 切换便签
 const selectNote = (note: NotepadInfo) => {
@@ -129,6 +140,22 @@ const createNew = () => {
     }
     showList.value = false
 }
+
+// 暴露刷新方法给父组件
+const refreshData = async () => {
+    await loadList()
+}
+defineExpose({ refreshData })
+
+// 监听显示状态
+watch(() => props.visible, (val) => {
+    if (val) {
+        initData()
+    } else {
+        // 关闭时，立即执行保存
+        handleSave()
+    }
+})
 
 // 删除便签
 const deleteNote = async (note: NotepadInfo) => {
@@ -279,16 +306,45 @@ const execCommand = (command: string, value?: string) => {
     handleInput()
 }
 
-// 初始化
-onMounted(async () => {
+// 初始化/打开时加载
+const initData = async () => {
     await loadList()
-    // 默认加载第一个，或者保留空的新建状态
-    if (noteList.value.length > 0) {
+    
+    // 如果列表为空，保持新建状态
+    if (noteList.value.length === 0) {
+        if (currentNote.value.id !== 0) {
+             createNew()
+        }
+        return
+    }
+
+    // 如果只是打开（id=0且空），选中第一个
+    if (currentNote.value.id === 0 && !currentNote.value.content && !currentNote.value.title) {
         selectNote(noteList.value[0])
     } else {
-        createNew()
+        // 如果当前有选中的ID，检查是否还在列表中
+        const exist = noteList.value.find(n => n.id === currentNote.value.id)
+        if (exist) {
+            // 同步数据：使用最新的服务器数据更新当前便签
+            currentNote.value = { ...exist }
+            if (editorRef.value) {
+                const isFocused = document.activeElement === editorRef.value
+                editorRef.value.innerHTML = exist.content || ''
+                 // 如果之前由焦点保留焦点（虽然打开时不应该有焦点）
+                if (isFocused) {
+                    // restore cursor? 比较复杂，但在打开瞬间通常不需要。
+                }
+            }
+        } else {
+            // 如果不在了，选中第一个
+            selectNote(noteList.value[0])
+        }
     }
-})
+}
+
+
+
+
 
 // 处理关闭
 const close = () => {

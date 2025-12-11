@@ -15,7 +15,7 @@ import { router } from '@/router'
 import { onBeforeRouteUpdate } from 'vue-router'
 import { t } from '@/locales'
 import {  computed } from "vue"
-import { useWindowSize } from "@vueuse/core"
+import { useWindowSize, useStorage } from "@vueuse/core"
 import { NDrawer, NDrawerContent, NTree,  } from "naive-ui"
 interface ItemGroup extends Panel.ItemIconGroup {
   sortStatus?: boolean
@@ -65,6 +65,12 @@ async function handleRefreshData() {
     // 调用loadBookmarkTree并传入true参数以强制刷新
     await loadBookmarkTree(true)
 
+    // 刷新便签数据
+    if (notepadInstance.value) {
+        // @ts-ignore
+        notepadInstance.value.refreshData?.()
+    }
+
     ms.success(t('common.refreshSuccess'))
   } catch (error) {
     console.error('刷新数据失败:', error)
@@ -93,6 +99,7 @@ const filterItems = ref<ItemGroup[]>([])
 
 const drawerVisible = ref(false)
 const notepadVisible = ref(false)
+const notepadInstance = ref(null) // 便签实例
 const { width } = useWindowSize()
 
 // 移动端判断
@@ -113,7 +120,7 @@ const GROUP_LIST_CACHE_KEY = 'groupListCache'
 // 图标列表缓存键前缀
 const ITEM_ICON_LIST_CACHE_KEY_PREFIX = 'itemIconList_'
 
-const systemPingUrl = ref('')
+const systemPingUrl = useStorage('systemPingUrl', '')
 
 // 检测内网连接
 async function checkIntranetConnection(): Promise<boolean> {
@@ -826,9 +833,11 @@ onMounted(async () => {
 
   // 加载Ping Url设置
   try {
-    const res = await getSystemSettings<{pingUrl: string}>(['pingUrl'])
-    if (res.code === 0 && res.data && res.data.pingUrl) {
-      systemPingUrl.value = res.data.pingUrl
+    if (!systemPingUrl.value) {
+      const res = await getSystemSettings<{pingUrl: string}>(['pingUrl'])
+      if (res.code === 0 && res.data && res.data.pingUrl) {
+        systemPingUrl.value = res.data.pingUrl
+      }
     }
   } catch (error) {
     console.error('获取Ping Url设置失败', error)
@@ -1320,7 +1329,7 @@ function handleChangeNetwork(targetMode: PanelStateNetworkModeEnum) {
       </NButtonGroup>
 
       <AppStarter v-model:visible="settingModalShow" />
-      <NotePad v-model:visible="notepadVisible" />
+      <NotePad ref="notepadInstance" v-model:visible="notepadVisible" />
       <!-- <Setting v-model:visible="settingModalShow" /> -->
     </div>
 

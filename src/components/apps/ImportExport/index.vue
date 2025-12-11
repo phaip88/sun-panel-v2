@@ -52,11 +52,12 @@ async function importIcons(): Promise<string | null> {
 
       if (createGroupResponse.code === 0) {
         const groupId = createGroupResponse.data?.id
-        // 清除分组列表缓存
-        ss.remove('GROUP_LIST_CACHE')
+        // 清除分组列表缓存 (key必须与Home组件一致)
+        ss.remove('groupListCache')
 
         if (groupId) {
           let addIcons: Panel.ItemInfo[] = []
+
 
           // 批量添加子项
           for (let iconI = 0; iconI < element.children.length; iconI++) {
@@ -235,13 +236,22 @@ async function handleStartImport() {
   loading.value = true
   if (checkedItems.value.includes('icons')) {
     const errMsg = await importIcons()
-    if (errMsg !== null)
-      ms.success(`${t('common.failed')}:${errMsg}`)
+    if (errMsg !== null) {
+      ms.error(`${t('common.failed')}:${errMsg}`) // Use error for failure
+    } else {
+       // 成功
+       ms.success(`${t('common.success')}`)
+       // 延迟刷新
+       setTimeout(() => {
+           window.location.reload()
+       }, 1000)
+    }
+  } else {
+       // No items selected?
   }
 
   loading.value = false
   importRoundModalShow.value = false
-  ms.success(`${t('common.success')}, ${t('common.refreshPage')}`)
 }
 </script>
 
