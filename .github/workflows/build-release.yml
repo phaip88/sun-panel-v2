@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux-amd64:
+  build-linux-musl:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -40,10 +40,17 @@ jobs:
           cd service
           go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
 
-      - name: Build Linux Binary (amd64)
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build Linux Binary (musl static)
         run: |
           cd service
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o sun-panel main.go
+          CC=musl-gcc CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+            go build -ldflags '-linkmode external -extldflags "-static"' \
+            -o sun-panel main.go
 
       - name: Create Release Package
         run: |
@@ -51,7 +58,6 @@ jobs:
           cp service/sun-panel release/sun-panel-linux-amd64/
           cp -r dist release/sun-panel-linux-amd64/web
           
-          # Create start script
           cat > release/sun-panel-linux-amd64/start.sh << 'EOF'
           #!/bin/bash
           cd "$(dirname "$0")"
@@ -76,13 +82,13 @@ jobs:
           tag_name: ${{ steps.version.outputs.TAG }}
           name: Sun-Panel-V2 ${{ steps.version.outputs.TAG }}
           body: |
-            # Sun-Panel-V2 预编译版本
+            # Sun-Panel-V2 预编译版本 (静态编译)
             
-            无需编译，直接下载二进制文件即可运行。
+            无需任何依赖，直接下载运行。
             
             ## 📦 下载
             
-            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz`
+            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz` (静态编译，兼容所有 Linux)
             
             ## 🚀 快速部署
             
@@ -97,9 +103,8 @@ jobs:
             # 运行
             ./start.sh
             
-            # 或直接运行
-            chmod +x sun-panel
-            ./sun-panel
+            # 或后台运行
+            nohup ./sun-panel > sun-panel.log 2>&1 &
             ```
             
             ## 🌐 访问地址
@@ -107,10 +112,6 @@ jobs:
             - 地址: http://localhost:3002
             - 账号: admin
             - 密码: 123456
-            
-            ## ⚙️ 配置
-            
-            首次运行会在 `conf/` 目录生成配置文件。
           files: |
             release/sun-panel-linux-amd64.tar.gz
           draft: false
@@ -120,9 +121,7 @@ jobs:
 
       - name: Build Success
         if: success()
-        run: |
-          echo "✅ Build and release completed!"
-          echo "📦 Release: ${{ steps.version.outputs.TAG }}"
+        run: echo "✅ Build completed!"
 
       - name: Build Failed
         if: failure()
