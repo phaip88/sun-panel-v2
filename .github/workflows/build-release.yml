@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-linux-amd64:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -44,61 +43,163 @@ jobs:
       - name: Build Linux Binary (amd64)
         run: |
           cd service
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-linux-amd64 main.go
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o sun-panel main.go
 
-      - name: Build Linux Binary (arm64)
+      - name: Create Release Package
+        run: |
+          mkdir -p release/sun-panel-linux-amd64
+          cp service/sun-panel release/sun-panel-linux-amd64/
+          cp -r dist release/sun-panel-linux-amd64/web
+          
+          # Create start script
+          cat > release/sun-panel-linux-amd64/start.sh << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          chmod +x sun-panel
+          ./sun-panel
+          EOF
+          chmod +x release/sun-panel-linux-amd64/start.sh
+          
+          cd release
+          tar -czf sun-panel-linux-amd64.tar.gz sun-panel-linux-amd64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sun-panel-linux-amd64
+          path: release/sun-panel-linux-amd64.tar.gz
+
+  build-linux-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Build Frontend
+        run: |
+          pnpm install
+          pnpm run build
+
+      - name: Setup Go bindata tools
+        run: |
+          go install -a -v github.com/go-bindata/go-bindata/...@latest
+          go install -a -v github.com/elazarl/go-bindata-assetfs/...@latest
+
+      - name: Build Backend Assets
         run: |
           cd service
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -o ../sun-panel-linux-arm64 main.go
+          go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
+
+      - name: Install musl cross compiler
+        run: |
+          curl -L -o x86_64-linux-musl-cross.tgz https://musl.nn.ci/x86_64-linux-musl-cross.tgz
+          tar xf x86_64-linux-musl-cross.tgz --strip-components 1 -C /usr/local
+          rm x86_64-linux-musl-cross.tgz
+
+      - name: Build Linux Binary (musl static)
+        run: |
+          cd service
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 CC=x86_64-linux-musl-gcc \
+            go build -ldflags "-linkmode external -extldflags '-static -fpic'" \
+            -o sun-panel main.go
+
+      - name: Create Release Package
+        run: |
+          mkdir -p release/sun-panel-linux-musl-amd64
+          cp service/sun-panel release/sun-panel-linux-musl-amd64/
+          cp -r dist release/sun-panel-linux-musl-amd64/web
+          
+          cat > release/sun-panel-linux-musl-amd64/start.sh << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          chmod +x sun-panel
+          ./sun-panel
+          EOF
+          chmod +x release/sun-panel-linux-musl-amd64/start.sh
+          
+          cd release
+          tar -czf sun-panel-linux-musl-amd64.tar.gz sun-panel-linux-musl-amd64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sun-panel-linux-musl-amd64
+          path: release/sun-panel-linux-musl-amd64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Build Frontend
+        run: |
+          pnpm install
+          pnpm run build
+
+      - name: Setup Go bindata tools
+        run: |
+          go install -a -v github.com/go-bindata/go-bindata/...@latest
+          go install -a -v github.com/elazarl/go-bindata-assetfs/...@latest
+
+      - name: Build Backend Assets
+        run: |
+          cd service
+          go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
 
       - name: Build Windows Binary
         run: |
           cd service
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-windows-amd64.exe main.go
-
-      - name: Build macOS Binary (amd64)
-        run: |
-          cd service
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-macos-amd64 main.go
-
-      - name: Build macOS Binary (arm64)
-        run: |
-          cd service
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o ../sun-panel-macos-arm64 main.go
+          $env:CGO_ENABLED=1
+          go build -o sun-panel.exe main.go
 
       - name: Create Release Package
         run: |
-          mkdir -p release
-          
-          # Linux amd64
-          mkdir -p release/sun-panel-linux-amd64
-          cp sun-panel-linux-amd64 release/sun-panel-linux-amd64/
-          cp -r dist release/sun-panel-linux-amd64/web
-          cd release && tar -czf sun-panel-linux-amd64.tar.gz sun-panel-linux-amd64 && cd ..
-          
-          # Linux arm64
-          mkdir -p release/sun-panel-linux-arm64
-          cp sun-panel-linux-arm64 release/sun-panel-linux-arm64/
-          cp -r dist release/sun-panel-linux-arm64/web
-          cd release && tar -czf sun-panel-linux-arm64.tar.gz sun-panel-linux-arm64 && cd ..
-          
-          # Windows
           mkdir -p release/sun-panel-windows-amd64
-          cp sun-panel-windows-amd64.exe release/sun-panel-windows-amd64/
+          cp service/sun-panel.exe release/sun-panel-windows-amd64/
           cp -r dist release/sun-panel-windows-amd64/web
-          cd release && zip -r sun-panel-windows-amd64.zip sun-panel-windows-amd64 && cd ..
-          
-          # macOS amd64
-          mkdir -p release/sun-panel-macos-amd64
-          cp sun-panel-macos-amd64 release/sun-panel-macos-amd64/
-          cp -r dist release/sun-panel-macos-amd64/web
-          cd release && tar -czf sun-panel-macos-amd64.tar.gz sun-panel-macos-amd64 && cd ..
-          
-          # macOS arm64
-          mkdir -p release/sun-panel-macos-arm64
-          cp sun-panel-macos-arm64 release/sun-panel-macos-arm64/
-          cp -r dist release/sun-panel-macos-arm64/web
-          cd release && tar -czf sun-panel-macos-arm64.tar.gz sun-panel-macos-arm64 && cd ..
+          Compress-Archive -Path release/sun-panel-windows-amd64 -DestinationPath release/sun-panel-windows-amd64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sun-panel-windows-amd64
+          path: release/sun-panel-windows-amd64.zip
+
+  release:
+    needs: [build-linux-amd64, build-linux-musl, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Get Version
         id: version
@@ -119,97 +220,63 @@ jobs:
             
             ## 📦 下载
             
-            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz`
-            - **Linux (ARM64)**: `sun-panel-linux-arm64.tar.gz`
-            - **Windows (x86_64)**: `sun-panel-windows-amd64.zip`
-            - **macOS (Intel)**: `sun-panel-macos-amd64.tar.gz`
-            - **macOS (Apple Silicon)**: `sun-panel-macos-arm64.tar.gz`
+            | 平台 | 文件 | 说明 |
+            |------|------|------|
+            | Linux (glibc) | `sun-panel-linux-amd64.tar.gz` | 适用于大多数 Linux 发行版 |
+            | Linux (musl) | `sun-panel-linux-musl-amd64.tar.gz` | 静态编译，兼容性更好（推荐） |
+            | Windows | `sun-panel-windows-amd64.zip` | Windows 64位 |
             
             ## 🚀 快速部署
             
-            ### Linux 部署
+            ### Linux 部署（推荐使用 musl 版本）
             ```bash
             # 下载
-            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.TAG }}/sun-panel-linux-amd64.tar.gz
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.TAG }}/sun-panel-linux-musl-amd64.tar.gz
             
             # 解压
-            tar -xzf sun-panel-linux-amd64.tar.gz
-            cd sun-panel-linux-amd64
-            
-            # 赋予执行权限
-            chmod +x sun-panel-linux-amd64
+            tar -xzf sun-panel-linux-musl-amd64.tar.gz
+            cd sun-panel-linux-musl-amd64
             
             # 运行
-            ./sun-panel-linux-amd64
+            ./start.sh
             
-            # 访问
-            # http://localhost:3002
-            # 账号: admin
-            # 密码: 123456
+            # 或直接运行
+            chmod +x sun-panel
+            ./sun-panel
             ```
             
             ### Windows 部署
-            ```bash
-            # 下载并解压 sun-panel-windows-amd64.zip
-            # 双击运行 sun-panel-windows-amd64.exe
-            # 访问 http://localhost:3002
+            ```
+            1. 下载 sun-panel-windows-amd64.zip
+            2. 解压到任意目录
+            3. 双击运行 sun-panel.exe
             ```
             
-            ### macOS 部署
-            ```bash
-            # 下载
-            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.TAG }}/sun-panel-macos-amd64.tar.gz
+            ## 🌐 访问地址
             
-            # 解压
-            tar -xzf sun-panel-macos-amd64.tar.gz
-            cd sun-panel-macos-amd64
+            - 地址: http://localhost:3002
+            - 账号: admin
+            - 密码: 123456
             
-            # 赋予执行权限
-            chmod +x sun-panel-macos-amd64
-            
-            # 运行
-            ./sun-panel-macos-amd64
-            ```
-            
-            ## ⚙️ 环境变量
-            
-            - `http_port`: HTTP 端口 (默认: 3002)
-            - `db_type`: 数据库类型 (sqlite/mysql)
-            
-            ## 📝 配置文件
+            ## ⚙️ 配置
             
             首次运行会在 `conf/` 目录生成配置文件。
             
-            ## 🔧 故障排除
+            ## 📝 注意事项
             
-            如果遇到权限问题：
-            ```bash
-            chmod +x sun-panel-linux-amd64
-            ```
-            
-            如果遇到端口被占用：
-            ```bash
-            # 修改配置文件中的 http_port
-            ```
+            - **musl 版本**：静态编译，兼容性最好，推荐用于生产环境
+            - **glibc 版本**：动态链接，需要系统有对应的 glibc 库
+            - 如果遇到 `GLIBC_xxx not found` 错误，请使用 musl 版本
           files: |
-            release/sun-panel-linux-amd64.tar.gz
-            release/sun-panel-linux-arm64.tar.gz
-            release/sun-panel-windows-amd64.zip
-            release/sun-panel-macos-amd64.tar.gz
-            release/sun-panel-macos-arm64.tar.gz
+            artifacts/sun-panel-linux-amd64/sun-panel-linux-amd64.tar.gz
+            artifacts/sun-panel-linux-musl-amd64/sun-panel-linux-musl-amd64.tar.gz
+            artifacts/sun-panel-windows-amd64/sun-panel-windows-amd64.zip
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Success
-        if: success()
         run: |
-          echo "✅ Build and release completed successfully!"
+          echo "✅ Build and release completed!"
           echo "📦 Release: ${{ steps.version.outputs.TAG }}"
-
-      - name: Build Failed
-        if: failure()
-        run: |
-          echo "❌ Build failed!"
-          exit 1
