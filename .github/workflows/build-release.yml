@@ -6,21 +6,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux-musl:
+  build-linux-static:
     runs-on: ubuntu-latest
+    container:
+      image: golang:1.21-alpine3.18
     steps:
+      - name: Install dependencies
+        run: |
+          apk add --no-cache git nodejs npm bash curl gcc musl-dev
+
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -38,19 +34,12 @@ jobs:
       - name: Build Backend Assets
         run: |
           cd service
-          go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
+          ~/go/bin/go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
 
-      - name: Install musl tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-
-      - name: Build Linux Binary (musl static)
+      - name: Build Linux Binary (static)
         run: |
           cd service
-          CC=musl-gcc CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-            go build -ldflags '-linkmode external -extldflags "-static"' \
-            -o sun-panel main.go
+          CGO_ENABLED=1 go build -ldflags '-linkmode external -extldflags "-static"' -o sun-panel main.go
 
       - name: Create Release Package
         run: |
@@ -69,6 +58,22 @@ jobs:
           cd release
           tar -czf sun-panel-linux-amd64.tar.gz sun-panel-linux-amd64
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sun-panel-linux-amd64
+          path: release/sun-panel-linux-amd64.tar.gz
+
+  release:
+    needs: build-linux-static
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sun-panel-linux-amd64
+          path: release
+
       - name: Get Version
         id: version
         run: |
@@ -84,11 +89,11 @@ jobs:
           body: |
             # Sun-Panel-V2 预编译版本 (静态编译)
             
-            无需任何依赖，直接下载运行。
+            无需任何依赖，兼容所有 Linux 系统。
             
             ## 📦 下载
             
-            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz` (静态编译，兼容所有 Linux)
+            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz`
             
             ## 🚀 快速部署
             
@@ -119,12 +124,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Success
-        if: success()
-        run: echo "✅ Build completed!"
-
-      - name: Build Failed
-        if: failure()
-        run: |
-          echo "❌ Build failed!"
-          exit 1
+      - name: Done
+        run: echo "✅ Release completed!"
