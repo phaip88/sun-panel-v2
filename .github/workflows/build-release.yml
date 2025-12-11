@@ -1,0 +1,215 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Build Frontend
+        run: |
+          pnpm install
+          pnpm run build
+
+      - name: Setup Go bindata tools
+        run: |
+          go install -a -v github.com/go-bindata/go-bindata/...@latest
+          go install -a -v github.com/elazarl/go-bindata-assetfs/...@latest
+
+      - name: Build Backend Assets
+        run: |
+          cd service
+          go-bindata-assetfs -o=assets/bindata.go -pkg=assets assets/...
+
+      - name: Build Linux Binary (amd64)
+        run: |
+          cd service
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-linux-amd64 main.go
+
+      - name: Build Linux Binary (arm64)
+        run: |
+          cd service
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -o ../sun-panel-linux-arm64 main.go
+
+      - name: Build Windows Binary
+        run: |
+          cd service
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-windows-amd64.exe main.go
+
+      - name: Build macOS Binary (amd64)
+        run: |
+          cd service
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o ../sun-panel-macos-amd64 main.go
+
+      - name: Build macOS Binary (arm64)
+        run: |
+          cd service
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -o ../sun-panel-macos-arm64 main.go
+
+      - name: Create Release Package
+        run: |
+          mkdir -p release
+          
+          # Linux amd64
+          mkdir -p release/sun-panel-linux-amd64
+          cp sun-panel-linux-amd64 release/sun-panel-linux-amd64/
+          cp -r dist release/sun-panel-linux-amd64/web
+          cd release && tar -czf sun-panel-linux-amd64.tar.gz sun-panel-linux-amd64 && cd ..
+          
+          # Linux arm64
+          mkdir -p release/sun-panel-linux-arm64
+          cp sun-panel-linux-arm64 release/sun-panel-linux-arm64/
+          cp -r dist release/sun-panel-linux-arm64/web
+          cd release && tar -czf sun-panel-linux-arm64.tar.gz sun-panel-linux-arm64 && cd ..
+          
+          # Windows
+          mkdir -p release/sun-panel-windows-amd64
+          cp sun-panel-windows-amd64.exe release/sun-panel-windows-amd64/
+          cp -r dist release/sun-panel-windows-amd64/web
+          cd release && zip -r sun-panel-windows-amd64.zip sun-panel-windows-amd64 && cd ..
+          
+          # macOS amd64
+          mkdir -p release/sun-panel-macos-amd64
+          cp sun-panel-macos-amd64 release/sun-panel-macos-amd64/
+          cp -r dist release/sun-panel-macos-amd64/web
+          cd release && tar -czf sun-panel-macos-amd64.tar.gz sun-panel-macos-amd64 && cd ..
+          
+          # macOS arm64
+          mkdir -p release/sun-panel-macos-arm64
+          cp sun-panel-macos-arm64 release/sun-panel-macos-arm64/
+          cp -r dist release/sun-panel-macos-arm64/web
+          cd release && tar -czf sun-panel-macos-arm64.tar.gz sun-panel-macos-arm64 && cd ..
+
+      - name: Get Version
+        id: version
+        run: |
+          VERSION=$(date +'%Y%m%d-%H%M%S')
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: Sun-Panel-V2 ${{ steps.version.outputs.TAG }}
+          body: |
+            # Sun-Panel-V2 预编译版本
+            
+            无需编译，直接下载对应平台的二进制文件即可运行。
+            
+            ## 📦 下载
+            
+            - **Linux (x86_64)**: `sun-panel-linux-amd64.tar.gz`
+            - **Linux (ARM64)**: `sun-panel-linux-arm64.tar.gz`
+            - **Windows (x86_64)**: `sun-panel-windows-amd64.zip`
+            - **macOS (Intel)**: `sun-panel-macos-amd64.tar.gz`
+            - **macOS (Apple Silicon)**: `sun-panel-macos-arm64.tar.gz`
+            
+            ## 🚀 快速部署
+            
+            ### Linux 部署
+            ```bash
+            # 下载
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.TAG }}/sun-panel-linux-amd64.tar.gz
+            
+            # 解压
+            tar -xzf sun-panel-linux-amd64.tar.gz
+            cd sun-panel-linux-amd64
+            
+            # 赋予执行权限
+            chmod +x sun-panel-linux-amd64
+            
+            # 运行
+            ./sun-panel-linux-amd64
+            
+            # 访问
+            # http://localhost:3002
+            # 账号: admin
+            # 密码: 123456
+            ```
+            
+            ### Windows 部署
+            ```bash
+            # 下载并解压 sun-panel-windows-amd64.zip
+            # 双击运行 sun-panel-windows-amd64.exe
+            # 访问 http://localhost:3002
+            ```
+            
+            ### macOS 部署
+            ```bash
+            # 下载
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.TAG }}/sun-panel-macos-amd64.tar.gz
+            
+            # 解压
+            tar -xzf sun-panel-macos-amd64.tar.gz
+            cd sun-panel-macos-amd64
+            
+            # 赋予执行权限
+            chmod +x sun-panel-macos-amd64
+            
+            # 运行
+            ./sun-panel-macos-amd64
+            ```
+            
+            ## ⚙️ 环境变量
+            
+            - `http_port`: HTTP 端口 (默认: 3002)
+            - `db_type`: 数据库类型 (sqlite/mysql)
+            
+            ## 📝 配置文件
+            
+            首次运行会在 `conf/` 目录生成配置文件。
+            
+            ## 🔧 故障排除
+            
+            如果遇到权限问题：
+            ```bash
+            chmod +x sun-panel-linux-amd64
+            ```
+            
+            如果遇到端口被占用：
+            ```bash
+            # 修改配置文件中的 http_port
+            ```
+          files: |
+            release/sun-panel-linux-amd64.tar.gz
+            release/sun-panel-linux-arm64.tar.gz
+            release/sun-panel-windows-amd64.zip
+            release/sun-panel-macos-amd64.tar.gz
+            release/sun-panel-macos-arm64.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Success
+        if: success()
+        run: |
+          echo "✅ Build and release completed successfully!"
+          echo "📦 Release: ${{ steps.version.outputs.TAG }}"
+
+      - name: Build Failed
+        if: failure()
+        run: |
+          echo "❌ Build failed!"
+          exit 1
