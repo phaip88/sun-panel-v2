@@ -28,11 +28,8 @@ onMounted(() => {
       </div>
       <div class="text-xl">
         <NGradientText type="info">
-          <a href="https://github.com/75412701/sun-panel-v2/releases" class="font-semibold" :title="$t('apps.about.viewUpdateLog')" target="_blank">v{{ versionName }}</a>
+          <span class="font-semibold">v{{ versionName }}</span>
         </NGradientText>
-      </div>
-      <div class="mt-2">
-        <a href="https://github.com/75412701/sun-panel-v2/releases" target="_blank" class="link">{{ $t('apps.about.checkUpdate') }}</a>
       </div>
     </div>
 

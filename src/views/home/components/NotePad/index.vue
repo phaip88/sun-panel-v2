@@ -29,8 +29,8 @@ const headerRef = ref<HTMLElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // 状态 - 使用 useStorage 持久化
-const currentNote = useStorage<Partial<NotepadInfo>>('sun-panel-notepad-current', { id: 0, title: '', content: '' })
-const noteList = useStorage<NotepadInfo[]>('sun-panel-notepad-list', [])
+const currentNote = useStorage<Partial<NotepadInfo>>('home-panel-notepad-current', { id: 0, title: '', content: '' })
+const noteList = useStorage<NotepadInfo[]>('home-panel-notepad-list', [])
 const showList = ref(false)
 
 // 窗口初始位置

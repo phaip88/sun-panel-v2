@@ -3,7 +3,7 @@ import moment from 'moment'
 
 const VERSION = 1 // 当前书签文件版本
 const ALLOW_LOW_VERSION = 1 // 最小支持的书签文件版本号
-const APPNAME = 'Sun-Panel-Bookmark'
+const APPNAME = 'Home-Bookmark'
 
 // 书签接口定义
 export interface BookmarkItem {
@@ -24,7 +24,7 @@ export interface BookmarkFolder {
 
 export interface BookmarkJsonStructure {
   version: number
-  appName: 'Sun-Panel-Bookmark'
+  appName: 'Home-Bookmark'
   exportTime: string
   appVersion: string
   bookmarks: BookmarkFolder[]
@@ -82,7 +82,7 @@ export function exportBookmarkJson(appVersion?: string): ExportBookmarkResult {
         const blob = new Blob([jsonString], { type: 'application/json' })
         const link = document.createElement('a')
         link.href = URL.createObjectURL(blob)
-        link.download = `SunPanel-Bookmark${moment().format('YYYYMMDDHHmm')}.sun-panel.json`
+        link.download = `Home-Bookmark${moment().format('YYYYMMDDHHmm')}.home-panel.json`
         link.click()
       }
     },
